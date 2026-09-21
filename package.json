@@ -1,12 +1,13 @@
 {
-  "name": "tarbiyah-next",
+  "name": "tarbiyah-institute",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "types": "npx supabase gen types typescript --project-id lrxodpvqoygczaiwotad > types/database.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
