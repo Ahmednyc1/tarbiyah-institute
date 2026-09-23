@@ -1,0 +1,111 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
+
+export type SchemeState = { error?: string; saved?: boolean } | null;
+
+function refresh(classId: string) {
+  revalidatePath(`/gradebook/${classId}/setup`);
+  revalidatePath(`/gradebook/${classId}`);
+}
+
+/**
+ * Replaces the whole grading scheme.
+ *
+ * Goes through the set_grade_categories RPC rather than individual writes so
+ * the weights-sum-to-100 check runs once, at commit. Saving row by row would
+ * fail the moment a running total passed through 95.
+ */
+export async function saveScheme(_prev: SchemeState, formData: FormData): Promise<SchemeState> {
+  const classId = String(formData.get("classId") ?? "");
+  if (!classId) return { error: "Missing class." };
+
+  let categories: unknown;
+  try {
+    categories = JSON.parse(String(formData.get("categories") ?? "[]"));
+  } catch {
+    return { error: "Could not read the scheme." };
+  }
+
+  if (!Array.isArray(categories) || categories.length === 0) {
+    return { error: "Add at least one category." };
+  }
+
+  for (const c of categories as { name?: string; weight?: number }[]) {
+    if (!c.name?.trim()) return { error: "Every category needs a name." };
+    if (!Number.isFinite(c.weight) || c.weight! <= 0 || c.weight! > 100) {
+      return { error: `"${c.name}" needs a weight between 1 and 100.` };
+    }
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_grade_categories", {
+    p_class_id: classId,
+    p_categories: categories as never,
+  });
+
+  // The weights trigger surfaces here with its own wording.
+  if (error) return { error: error.message };
+
+  refresh(classId);
+  return { saved: true };
+}
+
+export async function createAssignment(formData: FormData) {
+  const classId = String(formData.get("classId") ?? "");
+  const categoryId = String(formData.get("categoryId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const maxScore = Number(formData.get("maxScore"));
+  const dueDate = String(formData.get("dueDate") ?? "");
+
+  if (!classId || !categoryId || !name || !Number.isFinite(maxScore) || maxScore <= 0) return;
+
+  const supabase = await createClient();
+  await supabase.from("assignments").insert({
+    class_id: classId,
+    grade_category_id: categoryId,
+    name,
+    max_score: maxScore,
+    due_date: dueDate || null,
+    is_published: formData.get("isPublished") === "on",
+  });
+
+  refresh(classId);
+}
+
+export async function updateAssignment(formData: FormData) {
+  const classId = String(formData.get("classId") ?? "");
+  const id = String(formData.get("assignmentId") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const maxScore = Number(formData.get("maxScore"));
+  const dueDate = String(formData.get("dueDate") ?? "");
+
+  if (!classId || !id || !name || !Number.isFinite(maxScore) || maxScore <= 0) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("assignments")
+    .update({
+      name,
+      max_score: maxScore,
+      due_date: dueDate || null,
+      is_published: formData.get("isPublished") === "on",
+    })
+    .eq("id", id);
+
+  refresh(classId);
+}
+
+export async function deleteAssignment(formData: FormData) {
+  const classId = String(formData.get("classId") ?? "");
+  const id = String(formData.get("assignmentId") ?? "");
+  if (!classId || !id) return;
+
+  // student_grades cascade from the assignment, so this destroys any marks
+  // already entered against it. The UI says so before you click.
+  const supabase = await createClient();
+  await supabase.from("assignments").delete().eq("id", id);
+
+  refresh(classId);
+}

@@ -17,8 +17,44 @@ begin;
 -- ---------------------------------------------------------------------------
 -- Clean up any previous run of this seed (matched by the sentinel email domain)
 -- ---------------------------------------------------------------------------
-delete from public.people where email like '%@seed.tarbiyah.test';
+-- Order matters. teachers.person_id, students.person_id, classes.course_id and
+-- certificates.enrollment_id are all ON DELETE RESTRICT, so deleting people or
+-- the course first raises a foreign key violation — children go first.
+-- student_grades and attendance need no statement of their own: they CASCADE
+-- from enrollments.
+
+delete from public.certificates c
+ using public.enrollments e
+ join public.classes cl on cl.id = e.class_id
+ join public.courses  co on co.id = cl.course_id
+ where c.enrollment_id = e.id
+   and co.code = 'AQD-101';
+
+delete from public.enrollments e
+ using public.classes cl
+ join public.courses co on co.id = cl.course_id
+ where e.class_id = cl.id
+   and co.code = 'AQD-101';
+
+delete from public.classes cl
+ using public.courses co
+ where cl.course_id = co.id
+   and co.code = 'AQD-101';
+
 delete from public.courses where code = 'AQD-101';
+
+delete from public.students s
+ using public.people p
+ where s.person_id = p.id
+   and p.email like '%@seed.tarbiyah.test';
+
+delete from public.teachers t
+ using public.people p
+ where t.person_id = p.id
+   and p.email like '%@seed.tarbiyah.test';
+
+-- The sentinel domain is the safety rail: no real person can match it.
+delete from public.people where email like '%@seed.tarbiyah.test';
 
 -- ---------------------------------------------------------------------------
 do $$

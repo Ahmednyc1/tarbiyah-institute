@@ -155,14 +155,14 @@ export type Database = {
             foreignKeyName: "attendance_enrollment_id_fkey"
             columns: ["enrollment_id"]
             isOneToOne: false
-            referencedRelation: "enrollment_grades"
-            referencedColumns: ["enrollment_id"]
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "attendance_enrollment_id_fkey"
-            columns: ["enrollment_id"]
+            foreignKeyName: "attendance_recorded_by_fkey"
+            columns: ["recorded_by"]
             isOneToOne: false
-            referencedRelation: "enrollments"
+            referencedRelation: "teacher_directory"
             referencedColumns: ["id"]
           },
           {
@@ -212,13 +212,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "certificates_enrollment_id_fkey"
-            columns: ["enrollment_id"]
-            isOneToOne: true
-            referencedRelation: "enrollment_grades"
-            referencedColumns: ["enrollment_id"]
-          },
           {
             foreignKeyName: "certificates_enrollment_id_fkey"
             columns: ["enrollment_id"]
@@ -296,6 +289,13 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classes_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_directory"
             referencedColumns: ["id"]
           },
           {
@@ -407,6 +407,7 @@ export type Database = {
           id: string
           name: string
           position: number
+          source: string
           updated_at: string
           weight: number
         }
@@ -416,6 +417,7 @@ export type Database = {
           id?: string
           name: string
           position?: number
+          source?: string
           updated_at?: string
           weight: number
         }
@@ -425,6 +427,7 @@ export type Database = {
           id?: string
           name?: string
           position?: number
+          source?: string
           updated_at?: string
           weight?: number
         }
@@ -448,7 +451,8 @@ export type Database = {
           id: string
           last_name: string
           phone: string | null
-          sex: string
+          sex: string | null
+          title: string | null
           updated_at: string
         }
         Insert: {
@@ -460,7 +464,8 @@ export type Database = {
           id?: string
           last_name: string
           phone?: string | null
-          sex: string
+          sex?: string | null
+          title?: string | null
           updated_at?: string
         }
         Update: {
@@ -472,7 +477,8 @@ export type Database = {
           id?: string
           last_name?: string
           phone?: string | null
-          sex?: string
+          sex?: string | null
+          title?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -526,15 +532,15 @@ export type Database = {
             foreignKeyName: "student_grades_enrollment_fk"
             columns: ["enrollment_id", "class_id"]
             isOneToOne: false
-            referencedRelation: "enrollment_grades"
-            referencedColumns: ["enrollment_id", "class_id"]
-          },
-          {
-            foreignKeyName: "student_grades_enrollment_fk"
-            columns: ["enrollment_id", "class_id"]
-            isOneToOne: false
             referencedRelation: "enrollments"
             referencedColumns: ["id", "class_id"]
+          },
+          {
+            foreignKeyName: "student_grades_graded_by_fkey"
+            columns: ["graded_by"]
+            isOneToOne: false
+            referencedRelation: "teacher_directory"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "student_grades_graded_by_fkey"
@@ -629,6 +635,20 @@ export type Database = {
       }
     }
     Views: {
+      enrollment_category_scores: {
+        Row: {
+          class_id: string | null
+          earned: number | null
+          enrollment_id: string | null
+          grade_category_id: string | null
+          name: string | null
+          position: number | null
+          possible: number | null
+          source: string | null
+          weight: number | null
+        }
+        Relationships: []
+      }
       enrollment_grades: {
         Row: {
           class_id: string | null
@@ -636,19 +656,40 @@ export type Database = {
           enrollment_id: string | null
           weight_graded_so_far: number | null
         }
+        Relationships: []
+      }
+      my_roles: {
+        Row: {
+          is_admin: boolean | null
+          person_id: string | null
+          student_id: string | null
+          teacher_id: string | null
+        }
+        Relationships: []
+      }
+      teacher_directory: {
+        Row: {
+          bio: string | null
+          full_name: string | null
+          id: string | null
+          person_id: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "enrollments_class_id_fkey"
-            columns: ["class_id"]
-            isOneToOne: false
-            referencedRelation: "classes"
+            foreignKeyName: "teachers_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Functions: {
-      [_ in never]: never
+      set_grade_categories: {
+        Args: { p_categories: Json; p_class_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
