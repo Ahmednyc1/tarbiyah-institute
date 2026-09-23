@@ -114,6 +114,13 @@ export type Database = {
             foreignKeyName: "assignments_class_fk"
             columns: ["class_id"]
             isOneToOne: false
+            referencedRelation: "class_availability"
+            referencedColumns: ["class_id"]
+          },
+          {
+            foreignKeyName: "assignments_class_fk"
+            columns: ["class_id"]
+            isOneToOne: false
             referencedRelation: "classes"
             referencedColumns: ["id"]
           },
@@ -391,6 +398,13 @@ export type Database = {
             foreignKeyName: "enrollments_class_id_fkey"
             columns: ["class_id"]
             isOneToOne: false
+            referencedRelation: "class_availability"
+            referencedColumns: ["class_id"]
+          },
+          {
+            foreignKeyName: "enrollments_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
             referencedRelation: "classes"
             referencedColumns: ["id"]
           },
@@ -435,6 +449,13 @@ export type Database = {
           weight?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "grade_categories_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "class_availability"
+            referencedColumns: ["class_id"]
+          },
           {
             foreignKeyName: "grade_categories_class_id_fkey"
             columns: ["class_id"]
@@ -608,6 +629,7 @@ export type Database = {
           id: string
           is_active: boolean
           person_id: string
+          photo_path: string | null
           updated_at: string
         }
         Insert: {
@@ -616,6 +638,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           person_id: string
+          photo_path?: string | null
           updated_at?: string
         }
         Update: {
@@ -624,6 +647,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           person_id?: string
+          photo_path?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -638,6 +662,16 @@ export type Database = {
       }
     }
     Views: {
+      class_availability: {
+        Row: {
+          capacity: number | null
+          class_id: string | null
+          is_full: boolean | null
+          remaining: number | null
+          taken: number | null
+        }
+        Relationships: []
+      }
       enrollment_category_scores: {
         Row: {
           class_id: string | null
@@ -676,6 +710,7 @@ export type Database = {
           full_name: string | null
           id: string | null
           person_id: string | null
+          photo_path: string | null
         }
         Relationships: [
           {

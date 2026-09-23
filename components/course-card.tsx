@@ -19,17 +19,17 @@ export function CourseCard({ course }: { course: CatalogueCourse }) {
       <div className="flex flex-1 flex-col gap-4 p-6">
         {offering ? (
           <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-center gap-2">
-              <GraduationCap className="h-4 w-4 shrink-0 text-primary" />
+            <li className="flex items-center">
+              <GraduationCap className="mr-2.5 h-4 w-4 shrink-0 text-primary" />
               {offering.teacher?.full_name ?? "Instructor to be announced"}
             </li>
-            <li className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
+            <li className="flex items-center">
+              <CalendarDays className="mr-2.5 h-4 w-4 shrink-0 text-primary" />
               {offering.meeting_schedule ?? offering.term}
             </li>
             {offering.capacity !== null ? (
-              <li className="flex items-center gap-2">
-                <Users className="h-4 w-4 shrink-0 text-primary" />
+              <li className="flex items-center">
+                <Users className="mr-2.5 h-4 w-4 shrink-0 text-primary" />
                 {offering.capacity} seats
               </li>
             ) : null}
