@@ -724,6 +724,7 @@ export type Database = {
       }
     }
     Functions: {
+      delete_course: { Args: { p_course_id: string }; Returns: undefined }
       enrol_person: {
         Args: {
           p_class_id: string
@@ -732,6 +733,25 @@ export type Database = {
           p_last_name?: string
           p_person_id?: string
           p_phone?: string
+        }
+        Returns: string
+      }
+      save_course: {
+        Args: {
+          p_capacity?: number
+          p_class_id?: string
+          p_code: string
+          p_course_id?: string
+          p_description?: string
+          p_end?: string
+          p_fee?: number
+          p_is_active?: boolean
+          p_location?: string
+          p_schedule?: string
+          p_start?: string
+          p_teacher_id: string
+          p_term: string
+          p_title: string
         }
         Returns: string
       }

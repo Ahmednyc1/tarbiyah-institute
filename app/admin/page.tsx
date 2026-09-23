@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatFee } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -178,10 +179,14 @@ export default async function AdminPage() {
         </div>
       )}
 
-      <p className="mt-6 text-sm text-muted-foreground">
-        Creating courses and classes is not built yet — open a roster to enrol students and
-        record payments.
-      </p>
+      <div className="mt-6 flex flex-wrap items-center gap-4">
+        <Button asChild variant="outline">
+          <Link href="/admin/courses">Courses and classes</Link>
+        </Button>
+        <p className="text-sm text-muted-foreground">
+          Create a course, schedule a class, or open a roster to enrol students.
+        </p>
+      </div>
     </div>
   );
 }

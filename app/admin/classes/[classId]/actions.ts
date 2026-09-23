@@ -56,6 +56,10 @@ async function callEnrol(
 
   if (error) {
     if (error.code === "23505") {
+      // Two different unique constraints land here and mean opposite things.
+      if (error.message.includes("people_email_unique")) {
+        return { error: "Someone already has that email address.", values };
+      }
       return { error: "That person is already on this roster.", values };
     }
     return { error: error.message, values };
@@ -97,6 +101,42 @@ export async function enrollNewPerson(
   if (email) {
     if (!z.email().safeParse(email).success) {
       return { error: `"${email}" is not a valid email address.`, values };
+    }
+
+    // An existing owner of this address is the likeliest reason a create
+    // fails, and the constraint name alone cannot say who or what to do next.
+    const supabase = await createClient();
+    const { data: existing } = await supabase
+      .from("people")
+      .select("id, title, first_name, last_name")
+      .ilike("email", email)
+      .maybeSingle();
+
+    if (existing) {
+      const who = [existing.title, existing.first_name, existing.last_name]
+        .filter(Boolean)
+        .join(" ");
+
+      const { data: already } = await supabase
+        .from("enrollments")
+        .select("status, students!inner ( person_id )")
+        .eq("class_id", classId)
+        .eq("students.person_id", existing.id)
+        .maybeSingle();
+
+      if (already?.status === "dropped") {
+        return {
+          error: `${who} already has a record and was dropped from this course. Re-enrol them from the dropped list below rather than adding a second record.`,
+          values,
+        };
+      }
+      if (already) {
+        return { error: `${who} is already on this roster.`, values };
+      }
+      return {
+        error: `${email} already belongs to ${who}. Search for them above and enrol that record, so their history stays in one place.`,
+        values,
+      };
     }
 
     // Skipped once the desk has confirmed the address is right anyway.
