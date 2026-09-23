@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { saveGrades, type SaveState } from "@/app/gradebook/[classId]/actions";
@@ -129,9 +130,12 @@ export function GradebookGrid({
             {students.map((student) => (
               <tr key={student.enrollmentId} className="border-b border-border/60 last:border-0">
                 <Td sticky>
-                  <span className="block whitespace-nowrap font-medium text-foreground">
+                  <Link
+                    href={`/gradebook/${classId}/student/${student.enrollmentId}`}
+                    className="block whitespace-nowrap font-medium text-foreground underline-offset-4 hover:text-primary hover:underline"
+                  >
                     {student.name}
-                  </span>
+                  </Link>
                   <span className="block text-xs text-muted-foreground">
                     {student.studentNumber}
                     {student.status !== "enrolled" ? ` · ${student.status}` : ""}

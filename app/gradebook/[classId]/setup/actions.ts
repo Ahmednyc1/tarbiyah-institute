@@ -109,3 +109,22 @@ export async function deleteAssignment(formData: FormData) {
 
   refresh(classId);
 }
+
+/** The two numeric policies that govern how a class is graded. */
+export async function updateClassPolicy(formData: FormData) {
+  const classId = String(formData.get("classId") ?? "");
+  const passingScore = Number(formData.get("passingScore"));
+  const grace = Number(formData.get("attendanceGrace"));
+
+  if (!classId) return;
+  if (!Number.isFinite(passingScore) || passingScore < 0 || passingScore > 100) return;
+  if (!Number.isInteger(grace) || grace < 0) return;
+
+  const supabase = await createClient();
+  await supabase
+    .from("classes")
+    .update({ passing_score: passingScore, attendance_grace: grace })
+    .eq("id", classId);
+
+  refresh(classId);
+}

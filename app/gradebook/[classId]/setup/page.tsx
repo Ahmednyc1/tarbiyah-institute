@@ -10,6 +10,7 @@ import {
   createAssignment,
   deleteAssignment,
   updateAssignment,
+  updateClassPolicy,
 } from "@/app/gradebook/[classId]/setup/actions";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,7 +22,7 @@ export default async function SetupPage({ params }: PageProps<"/gradebook/[class
 
   const { data: cls } = await supabase
     .from("classes")
-    .select("id, term, status, courses ( code, title )")
+    .select("id, term, status, passing_score, attendance_grace, courses ( code, title )")
     .eq("id", classId)
     .maybeSingle();
 
@@ -65,6 +66,55 @@ export default async function SetupPage({ params }: PageProps<"/gradebook/[class
       <div className="gold-rule mt-3" />
       <h1 className="mt-5 font-display text-5xl text-primary">{cls.courses?.title}</h1>
       <p className="mt-3 text-muted-foreground">{cls.term}</p>
+
+      <h2 className="mt-12 font-display text-3xl text-primary">Class policy</h2>
+      <form
+        action={updateClassPolicy}
+        className="mt-5 flex flex-wrap items-end gap-4 rounded-lg border border-border bg-card p-6 shadow-card"
+      >
+        <input type="hidden" name="classId" value={classId} />
+
+        <div className="w-40 space-y-1.5">
+          <label htmlFor="passingScore" className="text-xs uppercase tracking-wider text-muted-foreground">
+            Pass mark %
+          </label>
+          <Input
+            id="passingScore"
+            name="passingScore"
+            type="number"
+            min={0}
+            max={100}
+            step="any"
+            defaultValue={Number(cls.passing_score)}
+            className="lining-nums tabular-nums"
+          />
+        </div>
+
+        <div className="w-44 space-y-1.5">
+          <label htmlFor="attendanceGrace" className="text-xs uppercase tracking-wider text-muted-foreground">
+            Absences forgiven
+          </label>
+          <Input
+            id="attendanceGrace"
+            name="attendanceGrace"
+            type="number"
+            min={0}
+            step={1}
+            defaultValue={Number(cls.attendance_grace)}
+            className="lining-nums tabular-nums"
+          />
+        </div>
+
+        <Button type="submit" variant="outline">
+          Save policy
+        </Button>
+
+        <p className="w-full text-sm text-muted-foreground">
+          Absences forgiven applies before attendance affects the grade — the worst are used
+          first, an absence ahead of a late. The register still records what actually happened;
+          this only changes how it is scored. Excused sessions are dropped regardless.
+        </p>
+      </form>
 
       <h2 className="mt-12 font-display text-3xl text-primary">Grading scheme</h2>
       <p className="mt-2 text-foreground/75">

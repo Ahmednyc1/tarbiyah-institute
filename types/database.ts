@@ -230,6 +230,7 @@ export type Database = {
       }
       classes: {
         Row: {
+          attendance_grace: number
           capacity: number | null
           course_id: string
           created_at: string
@@ -248,6 +249,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attendance_grace?: number
           capacity?: number | null
           course_id: string
           created_at?: string
@@ -266,6 +268,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attendance_grace?: number
           capacity?: number | null
           course_id?: string
           created_at?: string

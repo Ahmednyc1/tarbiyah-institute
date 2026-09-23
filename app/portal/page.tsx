@@ -76,7 +76,14 @@ export default async function PortalPage() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-display text-2xl text-primary">{course?.title}</h3>
+                    <h3 className="font-display text-2xl text-primary">
+                      <Link
+                        href={`/portal/${row.id}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {course?.title}
+                      </Link>
+                    </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
                       {offering?.meeting_schedule ?? offering?.term}
                       {offering?.location ? ` · ${offering.location}` : ""}
