@@ -1,43 +1,32 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Award, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getViewer } from "@/lib/account";
-import { createClient } from "@/lib/supabase/server";
 import { formatFee } from "@/lib/catalogue";
+import { getReportCard, type ReportRow } from "@/lib/report-card";
 
 export const metadata: Metadata = {
   title: "Student portal",
-  description: "Your enrollments, schedules and course records.",
+  description: "Your classes, grades and certificates.",
 };
+
+const pct = (value: number) => `${value.toFixed(1).replace(/\.0$/, "")}%`;
 
 export default async function PortalPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/auth?next=/portal");
 
-  const supabase = await createClient();
+  // No students row means an account that has never enrolled — the normal
+  // state for a new sign-up, and for staff who don't take classes.
+  const rows = viewer.studentId ? await getReportCard(viewer.studentId) : [];
 
-  // Filter on student_id explicitly. RLS sets the ceiling on what a caller MAY
-  // read, not what this page should ask for — an admin matches
-  // `enrollments_admin_all` and would otherwise get every enrollment in the
-  // institute rendered as their own courses.
-  //
-  // No students row means the person has an account but has never enrolled,
-  // which is the normal state for a new sign-up.
-  const rows = viewer.studentId
-    ? ((
-        await supabase
-          .from("enrollments")
-          .select(
-            `id, status, payment_status, amount_due, amount_paid,
-             classes ( term, meeting_schedule, location,
-                       courses ( code, title ) )`,
-          )
-          .eq("student_id", viewer.studentId)
-          .order("enrolled_at", { ascending: false })
-      ).data ?? [])
-    : [];
+  const current = rows.filter((r) => !r.isFinal && r.status !== "dropped");
+  const finished = rows.filter((r) => r.isFinal);
+  const withdrawn = rows.filter((r) => r.status === "dropped");
+  const passedCount = finished.filter((r) => r.passed).length;
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-16">
@@ -53,65 +42,109 @@ export default async function PortalPage() {
         </p>
       ) : null}
 
-      <h2 className="mt-12 font-display text-3xl text-primary">Your courses</h2>
-
       {rows.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-border bg-card p-8 text-center shadow-card">
+        <div className="mt-12 rounded-lg border border-border bg-card p-8 text-center shadow-card">
           <p className="text-foreground/75">You are not enrolled in any courses yet.</p>
           <Button asChild className="mt-5 bg-gold text-gold-foreground hover:bg-gold/90">
             <Link href="/courses">Browse courses</Link>
           </Button>
         </div>
       ) : (
-        <ul className="mt-6 space-y-4">
-          {rows.map((row) => {
-            const offering = row.classes;
-            const course = offering?.courses;
-            const outstanding = Number(row.amount_due) - Number(row.amount_paid);
+        <>
+          {finished.length > 0 ? (
+            <p className="mt-8 text-foreground/75">
+              {finished.length} {finished.length === 1 ? "course" : "courses"} completed,{" "}
+              {passedCount} passed.
+              {current.length > 0
+                ? ` ${current.length} in progress.`
+                : ""}
+            </p>
+          ) : null}
 
-            return (
-              <li
-                key={row.id}
-                className="rounded-lg border border-border bg-card p-6 shadow-card"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-display text-2xl text-primary">
-                      <Link
-                        href={`/portal/${row.id}`}
-                        className="underline-offset-4 hover:underline"
-                      >
-                        {course?.title}
-                      </Link>
-                    </h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {offering?.meeting_schedule ?? offering?.term}
-                      {offering?.location ? ` · ${offering.location}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
+          <Section title="In progress" rows={current} />
+          <Section title="Completed" rows={finished} />
+          <Section title="Withdrawn" rows={withdrawn} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function Section({ title, rows }: { title: string; rows: ReportRow[] }) {
+  if (rows.length === 0) return null;
+
+  return (
+    <section className="mt-12">
+      <h2 className="font-display text-3xl text-primary">{title}</h2>
+      <ul className="mt-5 space-y-4">
+        {rows.map((row) => (
+          <li key={row.enrollmentId}>
+            <Link
+              href={`/portal/${row.enrollmentId}`}
+              className="group flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-card p-6 shadow-card transition-shadow hover:shadow-lift"
+            >
+              <div className="min-w-[14rem] flex-1">
+                <h3 className="font-display text-2xl text-primary">{row.courseTitle}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {row.courseCode} · {row.term}
+                  {row.teacherName ? ` · ${row.teacherName}` : ""}
+                </p>
+
+                {row.certificateNumber ? (
+                  <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-foreground/75">
+                    <Award className="h-4 w-4 text-gold" />
+                    {row.certificateRevoked
+                      ? `Certificate ${row.certificateNumber} — revoked`
+                      : `Certificate ${row.certificateNumber}`}
+                  </p>
+                ) : null}
+
+                {row.outstanding > 0 ? (
+                  <p className="mt-2 text-sm text-foreground/75">
+                    Outstanding balance: {formatFee(row.outstanding)}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="font-display text-3xl leading-none text-primary lining-nums tabular-nums">
+                    {row.grade === null ? "—" : pct(row.grade)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {row.grade === null
+                      ? "not marked yet"
+                      : row.isFinal
+                        ? "final grade"
+                        : "grade so far"}
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-end gap-2">
+                  {/* A verdict only once the class is over — a pass mark applied
+                      to a partly marked course would be misleading. */}
+                  {row.passed !== null ? (
+                    <Badge variant={row.passed ? "default" : "destructive"}>
+                      {row.passed ? "Passed" : "Did not pass"}
+                    </Badge>
+                  ) : (
                     <Badge variant="secondary" className="capitalize">
                       {row.status}
                     </Badge>
-                    <Badge
-                      variant={row.payment_status === "paid" ? "default" : "destructive"}
-                      className="capitalize"
-                    >
-                      {row.payment_status}
+                  )}
+                  {row.paymentStatus !== "paid" && row.paymentStatus !== "waived" ? (
+                    <Badge variant="destructive" className="capitalize">
+                      {row.paymentStatus}
                     </Badge>
-                  </div>
+                  ) : null}
                 </div>
 
-                {outstanding > 0 ? (
-                  <p className="mt-4 text-sm text-foreground/75">
-                    Outstanding balance: {formatFee(outstanding)}
-                  </p>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
