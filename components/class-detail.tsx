@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { formatFee } from "@/lib/catalogue";
+import { formatFee } from "@/lib/format";
 import type { EnrollmentDetail } from "@/lib/student-detail";
 import { cn } from "@/lib/utils";
 

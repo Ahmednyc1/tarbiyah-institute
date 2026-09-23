@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { InstructorDialog, Portrait } from "@/components/instructor-dialog";
 import { getViewer } from "@/lib/account";
-import { formatFee } from "@/lib/catalogue";
+import { formatFee } from "@/lib/format";
 import { teacherPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 

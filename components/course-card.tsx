@@ -2,7 +2,8 @@ import Link from "next/link";
 import { CalendarDays, GraduationCap, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatFee, openClassOf, type CatalogueCourse } from "@/lib/catalogue";
+import { openClassOf, type CatalogueCourse } from "@/lib/catalogue";
+import { formatFee } from "@/lib/format";
 
 export function CourseCard({ course }: { course: CatalogueCourse }) {
   const offering = openClassOf(course);

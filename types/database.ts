@@ -724,6 +724,17 @@ export type Database = {
       }
     }
     Functions: {
+      enrol_person: {
+        Args: {
+          p_class_id: string
+          p_email?: string
+          p_first_name?: string
+          p_last_name?: string
+          p_person_id?: string
+          p_phone?: string
+        }
+        Returns: string
+      }
       set_grade_categories: {
         Args: { p_categories: Json; p_class_id: string }
         Returns: undefined

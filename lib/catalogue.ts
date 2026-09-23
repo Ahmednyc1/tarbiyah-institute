@@ -62,10 +62,3 @@ export async function getCatalogue(): Promise<CatalogueCourse[]> {
 /** The offering a visitor can act on, if there is one. */
 export const openClassOf = (course: CatalogueCourse) =>
   course.classes.find((c) => c.status === "open") ?? course.classes[0] ?? null;
-
-export const formatFee = (value: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(value);

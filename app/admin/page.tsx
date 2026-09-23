@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { formatFee } from "@/lib/catalogue";
+import { formatFee } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
@@ -129,7 +129,16 @@ export default async function AdminPage() {
                         {row.courses?.title}
                       </Link>
                       <span className="block text-xs text-muted-foreground">
-                        {row.courses?.code}
+                        {row.courses?.code} ·{" "}
+                        {/* Visibly a link. Styled like the surrounding muted
+                            text, it read as part of the subtitle and nobody
+                            could tell it was clickable. */}
+                        <Link
+                          href={`/admin/classes/${row.id}`}
+                          className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+                        >
+                          Manage roster
+                        </Link>
                       </span>
                     </Td>
                     <Td>
@@ -170,7 +179,8 @@ export default async function AdminPage() {
       )}
 
       <p className="mt-6 text-sm text-muted-foreground">
-        Creating courses, managing rosters and recording payments are not built yet.
+        Creating courses and classes is not built yet — open a roster to enrol students and
+        record payments.
       </p>
     </div>
   );

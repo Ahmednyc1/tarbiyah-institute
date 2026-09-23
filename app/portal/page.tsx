@@ -5,7 +5,7 @@ import { Award, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getViewer } from "@/lib/account";
-import { formatFee } from "@/lib/catalogue";
+import { formatFee } from "@/lib/format";
 import { getReportCard, type ReportRow } from "@/lib/report-card";
 
 export const metadata: Metadata = {
