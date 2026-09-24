@@ -124,6 +124,12 @@ export default async function ClassGradebookPage({ params }: PageProps<"/gradebo
     })
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
 
+  // Dropped students leave the marking grid. Their marks are kept and still
+  // reachable from their own page — but somebody entering a term's worth of
+  // grades should not be typing marks for people who left.
+  const active = students.filter((s) => s.status !== "dropped");
+  const dropped = students.filter((s) => s.status === "dropped");
+
   const weightTotal = groups.reduce((s, g) => s + g.weight, 0);
 
   return (
@@ -177,10 +183,29 @@ export default async function ClassGradebookPage({ params }: PageProps<"/gradebo
       <GradebookGrid
         classId={classId}
         groups={groups}
-        students={students}
+        students={active}
         passingScore={Number(cls.passing_score)}
         showVerdict={cls.status === "completed"}
       />
+
+      {dropped.length > 0 ? (
+        <p className="mt-6 text-sm text-muted-foreground">
+          {dropped.length} {dropped.length === 1 ? "student" : "students"} left this course and{" "}
+          {dropped.length === 1 ? "is" : "are"} not shown:{" "}
+          {dropped.map((student, index) => (
+            <span key={student.enrollmentId}>
+              {index > 0 ? ", " : ""}
+              <Link
+                href={`/gradebook/${classId}/student/${student.enrollmentId}`}
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                {student.name}
+              </Link>
+            </span>
+          ))}
+          . Their marks are kept.
+        </p>
+      ) : null}
     </div>
   );
 }

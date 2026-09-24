@@ -39,11 +39,11 @@ export function InstructorDialog({
         </Button>
       </DialogTrigger>
 
-      <DialogContent>
+      <DialogContent className="max-w-md p-8">
         <DialogHeader>
           <div className="flex items-center">
             <Portrait name={name} photoUrl={photoUrl} size={64} />
-            <div className="ml-4">
+            <div className="ml-4 min-w-0">
               <DialogTitle>{name}</DialogTitle>
               {subtitle ? (
                 <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
