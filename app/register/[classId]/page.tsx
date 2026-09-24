@@ -99,20 +99,28 @@ export default async function RegisterPage({ params }: PageProps<"/register/[cla
   // or cancelled class is simply not found here.
   if (!cls) notFound();
 
-  // Already in it? Send them to their own page rather than inviting them again.
   let alreadyEnrolled = false;
+  let previouslyPaid = false;
   if (viewer?.studentId) {
     const { data } = await supabase
       .from("enrollments")
-      .select("id, status")
+      .select("id, status, amount_paid")
       .eq("class_id", classId)
       .eq("student_id", viewer.studentId)
       .maybeSingle();
+
     alreadyEnrolled = Boolean(data && data.status !== "dropped");
+    // Dropped, but money changed hands. Whether they owe again is a policy
+    // question about money — a person decides that, not a checkout page.
+    previouslyPaid = Boolean(data && data.status === "dropped" && Number(data.amount_paid) > 0);
   }
 
   const isFull = availability?.is_full ?? false;
-  const openForRegistration = cls.status === "open" && !isFull;
+  // The status is somebody's recollection; start_date is the fact. A course
+  // whose first session has run stops selling seats even if nobody remembered
+  // to change its status that morning.
+  const hasBegun = cls.start_date !== null && cls.start_date <= new Date().toISOString().slice(0, 10);
+  const openForRegistration = cls.status === "open" && !isFull && !hasBegun;
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-20">
@@ -197,6 +205,29 @@ export default async function RegisterPage({ params }: PageProps<"/register/[cla
           <Button asChild className="mt-5 bg-primary hover:bg-primary-deep">
             <Link href="/portal">Go to your portal</Link>
           </Button>
+        </Panel>
+      ) : previouslyPaid ? (
+        <Panel tone="warn" title="You have registered for this before">
+          <p>
+            Our records show you were registered for this course and later left it. Whether you
+            can rejoin, and whether anything further is owed, is for the institute to decide —
+            please email{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
+              {CONTACT_EMAIL}
+            </a>{" "}
+            or speak to the desk.
+          </p>
+        </Panel>
+      ) : hasBegun ? (
+        <Panel tone="warn" title="This course has already begun">
+          <p>
+            The first session has passed, so online registration is closed. Joining late is
+            sometimes possible — email{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
+              {CONTACT_EMAIL}
+            </a>{" "}
+            and ask.
+          </p>
         </Panel>
       ) : isFull ? (
         <Panel tone="warn" title="This class is full">
