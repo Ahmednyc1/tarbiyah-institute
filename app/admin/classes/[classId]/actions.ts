@@ -174,28 +174,36 @@ export async function enrollNewPerson(
   return result;
 }
 
-/** Adds to what has already been paid, rather than replacing it. */
+const METHODS = new Set(["cash", "transfer", "card", "other"]);
+
+/**
+ * Records one payment.
+ *
+ * Never touches enrollments.amount_paid — the database recalculates it from
+ * the payments, and the column is no longer writable from here. A second
+ * payment is a second row, because the two arrived on different days and
+ * finance reconciles each deposit separately.
+ */
 export async function recordPayment(formData: FormData) {
-  if (!(await adminViewer())) denied();
+  const viewer = await adminViewer();
+  if (!viewer) denied();
 
   const classId = String(formData.get("classId") ?? "");
   const enrollmentId = String(formData.get("enrollmentId") ?? "");
   const amount = Number(formData.get("amount"));
+  const method = String(formData.get("method") ?? "cash");
+
   if (!classId || !enrollmentId || !Number.isFinite(amount) || amount <= 0) return;
+  if (!METHODS.has(method)) return;
 
   const supabase = await createClient();
-  const { data: row } = await supabase
-    .from("enrollments")
-    .select("amount_paid")
-    .eq("id", enrollmentId)
-    .maybeSingle();
-  if (!row) return;
-
-  // payment_status is maintained by the sync_payment_status trigger.
-  await supabase
-    .from("enrollments")
-    .update({ amount_paid: Number(row.amount_paid) + amount })
-    .eq("id", enrollmentId);
+  await supabase.from("payments").insert({
+    enrollment_id: enrollmentId,
+    amount,
+    method,
+    // Who took the money. For cash at the desk this is the only record of it.
+    recorded_by: viewer.personId,
+  });
 
   refresh(classId);
 }

@@ -179,12 +179,15 @@ export default async function AdminPage() {
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap items-center gap-4">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button asChild variant="outline">
           <Link href="/admin/courses">Courses and classes</Link>
         </Button>
+        <Button asChild variant="outline">
+          <Link href="/admin/payments">Payments</Link>
+        </Button>
         <p className="text-sm text-muted-foreground">
-          Create a course, schedule a class, or open a roster to enrol students.
+          Create a course, open a roster, or pull the payments report.
         </p>
       </div>
     </div>

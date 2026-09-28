@@ -465,6 +465,60 @@ export type Database = {
           },
         ]
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          enrollment_id: string
+          id: string
+          method: string
+          note: string | null
+          paid_at: string
+          recorded_by: string | null
+          reference: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          method: string
+          note?: string | null
+          paid_at?: string
+          recorded_by?: string | null
+          reference?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          method?: string
+          note?: string | null
+          paid_at?: string
+          recorded_by?: string | null
+          reference?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       people: {
         Row: {
           auth_user_id: string | null
@@ -506,6 +560,77 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      seat_holds: {
+        Row: {
+          class_id: string
+          created_at: string
+          enrollment_id: string | null
+          expires_at: string
+          id: string
+          person_id: string
+          release_reason: string | null
+          released_at: string | null
+          stripe_session_id: string | null
+          stripe_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          enrollment_id?: string | null
+          expires_at: string
+          id?: string
+          person_id: string
+          release_reason?: string | null
+          released_at?: string | null
+          stripe_session_id?: string | null
+          stripe_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          enrollment_id?: string | null
+          expires_at?: string
+          id?: string
+          person_id?: string
+          release_reason?: string | null
+          released_at?: string | null
+          stripe_session_id?: string | null
+          stripe_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seat_holds_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "class_availability"
+            referencedColumns: ["class_id"]
+          },
+          {
+            foreignKeyName: "seat_holds_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seat_holds_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seat_holds_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       student_grades: {
         Row: {
@@ -670,6 +795,20 @@ export type Database = {
           remaining: number | null
           taken: number | null
         }
+        Insert: {
+          capacity?: number | null
+          class_id?: string | null
+          is_full?: never
+          remaining?: never
+          taken?: never
+        }
+        Update: {
+          capacity?: number | null
+          class_id?: string | null
+          is_full?: never
+          remaining?: never
+          taken?: never
+        }
         Relationships: []
       }
       enrollment_category_scores: {
@@ -736,6 +875,36 @@ export type Database = {
         }
         Returns: string
       }
+      hold_seat: {
+        Args: { p_class_id: string; p_minutes?: number }
+        Returns: string
+      }
+      payments_report: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          amount: number
+          course_code: string
+          course_title: string
+          local_date: string
+          method: string
+          note: string
+          paid_at: string
+          payment_id: string
+          recorded_by: string
+          reference: string
+          student_name: string
+          student_number: string
+          term: string
+        }[]
+      }
+      redeem_hold: {
+        Args: { p_amount_paid?: number; p_hold_id: string }
+        Returns: string
+      }
+      release_hold: {
+        Args: { p_hold_id: string; p_reason?: string }
+        Returns: undefined
+      }
       save_course: {
         Args: {
           p_capacity?: number
@@ -758,6 +927,20 @@ export type Database = {
       set_grade_categories: {
         Args: { p_categories: Json; p_class_id: string }
         Returns: undefined
+      }
+      waived_fees: {
+        Args: never
+        Returns: {
+          amount_due: number
+          amount_paid: number
+          course_code: string
+          course_title: string
+          enrollment_id: string
+          student_name: string
+          student_number: string
+          term: string
+          waiver_note: string
+        }[]
       }
     }
     Enums: {

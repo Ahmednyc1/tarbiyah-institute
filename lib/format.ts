@@ -11,3 +11,18 @@ export const formatFee = (value: number) =>
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
+
+/**
+ * Money to the cent.
+ *
+ * formatFee rounds to whole dollars, which reads well on a course card and is
+ * wrong anywhere the figure has to agree with a bank statement — $12.50 must
+ * not print as $13 on something being reconciled.
+ */
+export const formatMoney = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);

@@ -104,7 +104,8 @@ export function RosterRow({
 
       {open ? (
         <div className="mt-4 space-y-4 border-t border-border pt-4">
-          {/* Record a payment — adds to what is already paid. */}
+          {/* Each payment is its own record, so a balance settled in two goes
+              shows as two. Finance reconciles each deposit separately. */}
           <form action={recordPayment} className="flex flex-wrap items-end gap-3">
             <input type="hidden" name="classId" value={classId} />
             <input type="hidden" name="enrollmentId" value={enrollmentId} />
@@ -122,6 +123,23 @@ export function RosterRow({
                 defaultValue={outstanding > 0 ? outstanding : ""}
                 className="lining-nums tabular-nums"
               />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">
+                How
+              </label>
+              {/* Cash and transfers never reach Stripe, so finance has no other
+                  way to tell them apart when reconciling the month. */}
+              <select
+                name="method"
+                defaultValue="cash"
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="cash">Cash</option>
+                <option value="transfer">Bank transfer</option>
+                <option value="card">Card</option>
+                <option value="other">Other</option>
+              </select>
             </div>
             <Button type="submit" size="sm" className="bg-primary hover:bg-primary-deep">
               Record payment
