@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getViewer } from "@/lib/account";
+import { NOT_ALLOWED, graderViewer } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
 export type RegisterState = { error?: string; saved?: number; date?: string } | null;
@@ -29,8 +29,8 @@ export async function saveRegister(
   if (!classId) return { error: "Missing class." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(classDate)) return { error: "Choose a valid date." };
 
-  const viewer = await getViewer();
-  if (!viewer) return { error: "You are not signed in." };
+  const viewer = await graderViewer(classId);
+  if (!viewer) return { error: NOT_ALLOWED };
 
   const supabase = await createClient();
 

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { NOT_ALLOWED, denied, graderViewer } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
 export type SchemeState = { error?: string; saved?: boolean } | null;
@@ -20,6 +21,7 @@ function refresh(classId: string) {
 export async function saveScheme(_prev: SchemeState, formData: FormData): Promise<SchemeState> {
   const classId = String(formData.get("classId") ?? "");
   if (!classId) return { error: "Missing class." };
+  if (!(await graderViewer(classId))) return { error: NOT_ALLOWED };
 
   let categories: unknown;
   try {
@@ -61,6 +63,8 @@ export async function createAssignment(formData: FormData) {
 
   if (!classId || !categoryId || !name || !Number.isFinite(maxScore) || maxScore <= 0) return;
 
+  if (!(await graderViewer(classId))) denied();
+
   const supabase = await createClient();
   await supabase.from("assignments").insert({
     class_id: classId,
@@ -83,6 +87,8 @@ export async function updateAssignment(formData: FormData) {
 
   if (!classId || !id || !name || !Number.isFinite(maxScore) || maxScore <= 0) return;
 
+  if (!(await graderViewer(classId))) denied();
+
   const supabase = await createClient();
   await supabase
     .from("assignments")
@@ -102,6 +108,8 @@ export async function deleteAssignment(formData: FormData) {
   const id = String(formData.get("assignmentId") ?? "");
   if (!classId || !id) return;
 
+  if (!(await graderViewer(classId))) denied();
+
   // student_grades cascade from the assignment, so this destroys any marks
   // already entered against it. The UI says so before you click.
   const supabase = await createClient();
@@ -119,6 +127,8 @@ export async function updateClassPolicy(formData: FormData) {
   if (!classId) return;
   if (!Number.isFinite(passingScore) || passingScore < 0 || passingScore > 100) return;
   if (!Number.isInteger(grace) || grace < 0) return;
+
+  if (!(await graderViewer(classId))) denied();
 
   const supabase = await createClient();
   await supabase

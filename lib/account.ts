@@ -6,8 +6,11 @@ export type Viewer = {
   personId: string | null;
   displayName: string;
   /**
-   * Roles are for drawing the UI only. Never gate data on them — RLS re-checks
-   * every query in the database, which is what actually protects anything.
+   * Roles draw the UI, and gate Server Actions through lib/guard — but they
+   * are never the only thing standing in the way. RLS re-checks every query in
+   * the database, which is what actually protects the data; a role read here
+   * could only ever be a second lock, because it is decided in the same
+   * process that is asking.
    */
   isAdmin: boolean;
   teacherId: string | null;

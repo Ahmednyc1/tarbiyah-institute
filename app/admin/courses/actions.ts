@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { NOT_ALLOWED, adminViewer } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
 export type CatalogueState = { error?: string; ok?: string } | null;
@@ -43,6 +44,8 @@ export async function saveCourse(
   _prev: CatalogueState,
   formData: FormData,
 ): Promise<CatalogueState> {
+  if (!(await adminViewer())) return { error: NOT_ALLOWED };
+
   const parsed = courseForm.safeParse({
     code: formData.get("code"),
     title: formData.get("title"),
@@ -89,6 +92,8 @@ export async function setCourseStatus(
   _prev: CatalogueState,
   formData: FormData,
 ): Promise<CatalogueState> {
+  if (!(await adminViewer())) return { error: NOT_ALLOWED };
+
   const classId = String(formData.get("classId") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!classId) return { error: "This course has no details saved yet." };
@@ -113,6 +118,8 @@ export async function deleteCourse(
   _prev: CatalogueState,
   formData: FormData,
 ): Promise<CatalogueState> {
+  if (!(await adminViewer())) return { error: NOT_ALLOWED };
+
   const courseId = String(formData.get("courseId") ?? "");
   if (!courseId) return { error: "Missing course." };
 

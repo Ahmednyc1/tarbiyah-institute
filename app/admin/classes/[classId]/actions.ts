@@ -3,6 +3,7 @@
 import { promises as dns } from "node:dns";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { NOT_ALLOWED, adminViewer, denied } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
 export type RosterState = {
@@ -72,6 +73,8 @@ export async function enrollExistingPerson(
   _prev: RosterState,
   formData: FormData,
 ): Promise<RosterState> {
+  if (!(await adminViewer())) return { error: NOT_ALLOWED };
+
   const classId = String(formData.get("classId") ?? "");
   const personId = String(formData.get("personId") ?? "");
   if (!classId || !personId) return { error: "Pick someone to enrol." };
@@ -85,6 +88,8 @@ export async function enrollNewPerson(
   _prev: RosterState,
   formData: FormData,
 ): Promise<RosterState> {
+  if (!(await adminViewer())) return { error: NOT_ALLOWED };
+
   const classId = String(formData.get("classId") ?? "");
   const firstName = String(formData.get("firstName") ?? "").trim();
   const lastName = String(formData.get("lastName") ?? "").trim();
@@ -171,6 +176,8 @@ export async function enrollNewPerson(
 
 /** Adds to what has already been paid, rather than replacing it. */
 export async function recordPayment(formData: FormData) {
+  if (!(await adminViewer())) denied();
+
   const classId = String(formData.get("classId") ?? "");
   const enrollmentId = String(formData.get("enrollmentId") ?? "");
   const amount = Number(formData.get("amount"));
@@ -194,6 +201,8 @@ export async function recordPayment(formData: FormData) {
 }
 
 export async function waiveFee(formData: FormData) {
+  if (!(await adminViewer())) denied();
+
   const classId = String(formData.get("classId") ?? "");
   const enrollmentId = String(formData.get("enrollmentId") ?? "");
   const note = String(formData.get("waiverNote") ?? "").trim();
@@ -212,6 +221,8 @@ export async function waiveFee(formData: FormData) {
 
 /** Dropping keeps the record and its history; it never deletes marks. */
 export async function setEnrollmentStatus(formData: FormData) {
+  if (!(await adminViewer())) denied();
+
   const classId = String(formData.get("classId") ?? "");
   const enrollmentId = String(formData.get("enrollmentId") ?? "");
   const status = String(formData.get("status") ?? "");

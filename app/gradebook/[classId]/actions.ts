@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getViewer } from "@/lib/account";
+import { NOT_ALLOWED, graderViewer } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
 export type SaveState = { error?: string; saved?: number } | null;
@@ -19,8 +19,8 @@ export async function saveGrades(_prev: SaveState, formData: FormData): Promise<
   const classId = String(formData.get("classId") ?? "");
   if (!classId) return { error: "Missing class." };
 
-  const viewer = await getViewer();
-  if (!viewer) return { error: "You are not signed in." };
+  const viewer = await graderViewer(classId);
+  if (!viewer) return { error: NOT_ALLOWED };
 
   const supabase = await createClient();
 
