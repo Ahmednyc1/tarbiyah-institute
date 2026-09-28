@@ -184,10 +184,13 @@ export default async function AdminPage() {
           <Link href="/admin/courses">Courses and classes</Link>
         </Button>
         <Button asChild variant="outline">
+          <Link href="/admin/teachers">Teachers</Link>
+        </Button>
+        <Button asChild variant="outline">
           <Link href="/admin/payments">Payments</Link>
         </Button>
         <p className="text-sm text-muted-foreground">
-          Create a course, open a roster, or pull the payments report.
+          Create a course, add a teacher, open a roster, or pull the payments report.
         </p>
       </div>
     </div>
