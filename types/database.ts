@@ -128,42 +128,45 @@ export type Database = {
       }
       attendance: {
         Row: {
-          class_date: string
+          class_id: string
           created_at: string
           enrollment_id: string
           id: string
           note: string | null
           recorded_by: string | null
+          session_id: string
           status: string
           updated_at: string
         }
         Insert: {
-          class_date: string
+          class_id: string
           created_at?: string
           enrollment_id: string
           id?: string
           note?: string | null
           recorded_by?: string | null
+          session_id: string
           status: string
           updated_at?: string
         }
         Update: {
-          class_date?: string
+          class_id?: string
           created_at?: string
           enrollment_id?: string
           id?: string
           note?: string | null
           recorded_by?: string | null
+          session_id?: string
           status?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "attendance_enrollment_id_fkey"
-            columns: ["enrollment_id"]
+            foreignKeyName: "attendance_enrollment_fk"
+            columns: ["enrollment_id", "class_id"]
             isOneToOne: false
             referencedRelation: "enrollments"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "class_id"]
           },
           {
             foreignKeyName: "attendance_recorded_by_fkey"
@@ -171,6 +174,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "people"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_session_fk"
+            columns: ["session_id", "class_id"]
+            isOneToOne: false
+            referencedRelation: "class_sessions"
+            referencedColumns: ["id", "class_id"]
           },
         ]
       }
@@ -224,6 +234,72 @@ export type Database = {
             columns: ["issued_by"]
             isOneToOne: false
             referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_sessions: {
+        Row: {
+          class_id: string
+          created_at: string
+          ends_at: string | null
+          id: string
+          is_cancelled: boolean
+          is_published: boolean
+          meets_on: string
+          recording_url: string | null
+          session_number: number
+          slides_path: string | null
+          starts_at: string | null
+          summary: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          is_cancelled?: boolean
+          is_published?: boolean
+          meets_on: string
+          recording_url?: string | null
+          session_number: number
+          slides_path?: string | null
+          starts_at?: string | null
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          is_cancelled?: boolean
+          is_published?: boolean
+          meets_on?: string
+          recording_url?: string | null
+          session_number?: number
+          slides_path?: string | null
+          starts_at?: string | null
+          summary?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_sessions_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "class_availability"
+            referencedColumns: ["class_id"]
+          },
+          {
+            foreignKeyName: "class_sessions_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
             referencedColumns: ["id"]
           },
         ]
@@ -860,6 +936,15 @@ export type Database = {
           p_phone?: string
         }
         Returns: string
+      }
+      generate_sessions: {
+        Args: {
+          p_class_id: string
+          p_count: number
+          p_every_days?: number
+          p_first: string
+        }
+        Returns: number
       }
       hold_seat: {
         Args: { p_class_id: string; p_minutes?: number }

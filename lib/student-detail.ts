@@ -13,7 +13,15 @@ export type DetailAssignment = {
   markedAt: string | null;
 };
 
-export type DetailSession = { date: string; status: string; note: string | null };
+export type DetailSession = {
+  number: number;
+  date: string;
+  title: string | null;
+  /** Called off — shown, but counted against nobody. */
+  cancelled: boolean;
+  status: string;
+  note: string | null;
+};
 
 export type DetailCategory = {
   id: string;
@@ -110,9 +118,9 @@ export async function getEnrollmentDetail(
         .eq("enrollment_id", enrollmentId),
       supabase
         .from("attendance")
-        .select("class_date, status, note")
-        .eq("enrollment_id", enrollmentId)
-        .order("class_date"),
+        // The date lives on the session now, so it comes along by join.
+        .select("status, note, class_sessions ( session_number, meets_on, title, is_cancelled )")
+        .eq("enrollment_id", enrollmentId),
       supabase
         .from("enrollment_category_scores")
         .select("grade_category_id, earned, possible")
@@ -205,10 +213,15 @@ export async function getEnrollmentDetail(
     outstanding: Math.max(0, Number(enrollment.amount_due) - Number(enrollment.amount_paid)),
     paymentStatus: enrollment.payment_status,
     categories,
-    sessions: (attendanceRes.data ?? []).map((a) => ({
-      date: a.class_date as string,
-      status: a.status as string,
-      note: a.note as string | null,
-    })),
+    sessions: (attendanceRes.data ?? [])
+      .map((a) => ({
+        number: a.class_sessions?.session_number ?? 0,
+        date: a.class_sessions?.meets_on ?? "",
+        title: a.class_sessions?.title ?? null,
+        cancelled: a.class_sessions?.is_cancelled ?? false,
+        status: a.status as string,
+        note: a.note as string | null,
+      }))
+      .sort((x, y) => x.number - y.number),
   };
 }

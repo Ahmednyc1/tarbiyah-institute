@@ -249,26 +249,39 @@ export function ClassDetail({
           <ul className="mt-4 divide-y divide-border/60 rounded-lg border border-border bg-card shadow-card">
             {detail.sessions.map((session) => (
               <li
-                key={session.date}
-                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                key={`${session.number}:${session.date}`}
+                className={cn(
+                  "flex flex-wrap items-center justify-between gap-3 px-4 py-3",
+                  session.cancelled && "opacity-60",
+                )}
               >
                 <div>
-                  <span className="text-foreground/85">{formatDate(session.date)}</span>
-                  {session.note ? (
-                    <span className="block text-xs text-muted-foreground">{session.note}</span>
-                  ) : null}
+                  <span className="text-foreground/85">
+                    <span className="text-muted-foreground">{session.number}.</span>{" "}
+                    {session.title ?? formatDate(session.date)}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {session.title ? formatDate(session.date) : null}
+                    {session.note ? (session.title ? ` · ${session.note}` : session.note) : null}
+                  </span>
                 </div>
-                <span
-                  className={cn(
-                    "rounded-md px-2.5 py-0.5 text-xs font-medium",
-                    session.status === "present" && "bg-primary/10 text-primary",
-                    session.status === "late" && "bg-gold/25 text-gold-foreground",
-                    session.status === "absent" && "bg-destructive/15 text-destructive",
-                    session.status === "excused" && "bg-secondary text-muted-foreground",
-                  )}
-                >
-                  {STATUS_LABEL[session.status] ?? session.status}
-                </span>
+                {session.cancelled ? (
+                  <span className="rounded-md bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                    Cancelled
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      "rounded-md px-2.5 py-0.5 text-xs font-medium",
+                      session.status === "present" && "bg-primary/10 text-primary",
+                      session.status === "late" && "bg-gold/25 text-gold-foreground",
+                      session.status === "absent" && "bg-destructive/15 text-destructive",
+                      session.status === "excused" && "bg-secondary text-muted-foreground",
+                    )}
+                  >
+                    {STATUS_LABEL[session.status] ?? session.status}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

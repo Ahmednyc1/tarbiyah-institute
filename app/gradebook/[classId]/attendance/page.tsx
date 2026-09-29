@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CalendarPlus } from "lucide-react";
 import {
   AttendanceRegister,
+  type RegisterSession,
   type RegisterStudent,
-  type SessionSummary,
 } from "@/components/attendance-register";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Attendance" };
@@ -16,7 +17,7 @@ export default async function AttendancePage({
   searchParams,
 }: PageProps<"/gradebook/[classId]/attendance">) {
   const { classId } = await params;
-  const { date } = await searchParams;
+  const { session } = await searchParams;
   const supabase = await createClient();
 
   const { data: cls } = await supabase
@@ -27,7 +28,12 @@ export default async function AttendancePage({
 
   if (!cls) notFound();
 
-  const [enrollmentsRes, attendanceRes] = await Promise.all([
+  const [sessionsRes, enrollmentsRes, attendanceRes] = await Promise.all([
+    supabase
+      .from("class_sessions")
+      .select("id, session_number, meets_on, title, is_cancelled")
+      .eq("class_id", classId)
+      .order("session_number"),
     supabase
       .from("enrollments")
       .select("id, status, students ( student_number, people ( title, first_name, last_name ) )")
@@ -35,29 +41,42 @@ export default async function AttendancePage({
       .neq("status", "dropped"),
     supabase
       .from("attendance")
-      .select("enrollment_id, class_date, status, enrollments!inner ( class_id )")
-      .eq("enrollments.class_id", classId)
-      .order("class_date", { ascending: false }),
+      .select("enrollment_id, session_id, status, class_sessions!inner ( class_id )")
+      .eq("class_sessions.class_id", classId),
   ]);
 
+  const allSessions = sessionsRes.data ?? [];
   const attendance = attendanceRes.data ?? [];
 
-  // Every date the register has been taken, newest first.
-  const sessionDates = [...new Set(attendance.map((a) => a.class_date as string))].sort().reverse();
+  const marked = new Map<string, number>();
+  for (const row of attendance) {
+    const id = row.session_id as string;
+    marked.set(id, (marked.get(id) ?? 0) + 1);
+  }
 
-  const selectedDate =
-    typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
-      ? date
-      : new Date().toISOString().slice(0, 10);
+  const sessions: RegisterSession[] = allSessions.map((s) => ({
+    id: s.id,
+    number: s.session_number,
+    meetsOn: s.meets_on,
+    title: s.title,
+    isCancelled: s.is_cancelled,
+    marked: marked.get(s.id) ?? 0,
+  }));
 
-  const marksForDate = new Map(
+  // Default to the next session that has not been marked — the one a teacher
+  // is almost always here for. Failing that, the most recent.
+  const requested = typeof session === "string" ? sessions.find((s) => s.id === session) : undefined;
+  const nextUnmarked = sessions.find((s) => !s.isCancelled && s.marked === 0);
+  const selected = requested ?? nextUnmarked ?? sessions.at(-1) ?? null;
+
+  const marksForSession = new Map(
     attendance
-      .filter((a) => a.class_date === selectedDate)
+      .filter((a) => a.session_id === selected?.id)
       .map((a) => [a.enrollment_id as string, a.status as string]),
   );
 
-  const byStudentAndDate = new Map(
-    attendance.map((a) => [`${a.enrollment_id}:${a.class_date}`, a.status as string]),
+  const byStudentAndSession = new Map(
+    attendance.map((a) => [`${a.enrollment_id}:${a.session_id}`, a.status as string]),
   );
 
   const students: RegisterStudent[] = (enrollmentsRes.data ?? [])
@@ -70,18 +89,13 @@ export default async function AttendancePage({
           ? [person.title, person.first_name, person.last_name].filter(Boolean).join(" ")
           : "Unknown",
         sortKey: person ? `${person.last_name} ${person.first_name}` : "zzz",
-        current: marksForDate.get(e.id) ?? "",
+        current: selected ? (marksForSession.get(e.id) ?? "") : "",
         history: Object.fromEntries(
-          sessionDates.map((d) => [d, byStudentAndDate.get(`${e.id}:${d}`) ?? ""]),
+          sessions.map((s) => [s.id, byStudentAndSession.get(`${e.id}:${s.id}`) ?? ""]),
         ),
       };
     })
     .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-
-  const sessions: SessionSummary[] = sessionDates.map((d) => ({
-    date: d,
-    marked: attendance.filter((a) => a.class_date === d).length,
-  }));
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-16">
@@ -101,12 +115,26 @@ export default async function AttendancePage({
         {cls.meeting_schedule ? ` · ${cls.meeting_schedule}` : ""}
       </p>
 
-      <AttendanceRegister
-        classId={classId}
-        selectedDate={selectedDate}
-        students={students}
-        sessions={sessions}
-      />
+      {sessions.length === 0 ? (
+        <div className="mt-10 rounded-lg border border-border bg-card p-8 text-center shadow-card">
+          <p className="text-foreground/75">
+            This class has no sessions yet, so there is nothing to take a register against.
+          </p>
+          <Button asChild className="mt-5 bg-primary hover:bg-primary-deep">
+            <Link href={`/gradebook/${classId}/sessions`}>
+              <CalendarPlus className="mr-1.5 h-4 w-4" />
+              Lay out the term
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <AttendanceRegister
+          classId={classId}
+          sessions={sessions}
+          selectedId={selected?.id ?? null}
+          students={students}
+        />
+      )}
     </div>
   );
 }

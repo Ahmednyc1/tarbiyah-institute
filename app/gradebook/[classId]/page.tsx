@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ClipboardCheck, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, CalendarDays, ClipboardCheck, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GradebookGrid, type CategoryGroup, type StudentRow } from "@/components/gradebook-grid";
@@ -153,6 +153,12 @@ export default async function ClassGradebookPage({ params }: PageProps<"/gradebo
       </p>
 
       <div className="mt-6 flex flex-wrap gap-3">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/gradebook/${classId}/sessions`}>
+            <CalendarDays className="mr-1.5 h-4 w-4" />
+            Sessions
+          </Link>
+        </Button>
         <Button asChild variant="outline" size="sm">
           <Link href={`/gradebook/${classId}/attendance`}>
             <ClipboardCheck className="mr-1.5 h-4 w-4" />

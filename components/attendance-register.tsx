@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { saveRegister, type RegisterState } from "@/app/gradebook/[classId]/attendance/actions";
@@ -11,13 +11,20 @@ export type RegisterStudent = {
   name: string;
   sortKey: string;
   studentNumber: string;
-  /** Mark for the selected date, "" when not yet recorded. */
+  /** Mark for the selected session, "" when not yet recorded. */
   current: string;
-  /** date -> status, for the history grid. */
+  /** session id -> status, for the history grid. */
   history: Record<string, string>;
 };
 
-export type SessionSummary = { date: string; marked: number };
+export type RegisterSession = {
+  id: string;
+  number: number;
+  meetsOn: string;
+  title: string | null;
+  isCancelled: boolean;
+  marked: number;
+};
 
 const STATUSES = [
   { value: "present", label: "Present", short: "P" },
@@ -36,18 +43,18 @@ const formatDate = (iso: string) =>
 
 export function AttendanceRegister({
   classId,
-  selectedDate,
-  students,
   sessions,
+  selectedId,
+  students,
 }: {
   classId: string;
-  selectedDate: string;
+  sessions: RegisterSession[];
+  selectedId: string | null;
   students: RegisterStudent[];
-  sessions: SessionSummary[];
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<RegisterState, FormData>(saveRegister, null);
-  const [date, setDate] = useState(selectedDate);
+  const selected = sessions.find((s) => s.id === selectedId) ?? null;
 
   if (students.length === 0) {
     return (
@@ -57,32 +64,38 @@ export function AttendanceRegister({
     );
   }
 
-  const alreadyTaken = sessions.some((s) => s.date === selectedDate);
+  const alreadyTaken = (selected?.marked ?? 0) > 0;
 
   return (
     <>
       <form action={formAction} className="mt-8">
         <input type="hidden" name="classId" value={classId} />
+        <input type="hidden" name="sessionId" value={selected?.id ?? ""} />
 
         <div className="rounded-lg border border-border bg-card p-6 shadow-card">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="classDate" className="text-sm font-medium">
-                Session date
+              <label htmlFor="sessionPicker" className="text-sm font-medium">
+                Session
               </label>
-              <input
-                id="classDate"
-                name="classDate"
-                type="date"
-                value={date}
-                // Changing the date reloads the page so the form prefills with
-                // that session's existing marks rather than the current ones.
+              {/* A list, not a date field. A typo used to invent a meeting
+                  that existed for one student and lowered their grade. */}
+              <select
+                id="sessionPicker"
+                value={selected?.id ?? ""}
                 onChange={(event) => {
-                  setDate(event.target.value);
-                  router.push(`/gradebook/${classId}/attendance?date=${event.target.value}`);
+                  router.push(`/gradebook/${classId}/attendance?session=${event.target.value}`);
                 }}
                 className="block h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
+              >
+                {sessions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.number}. {formatDate(s.meetsOn)}
+                    {s.title ? ` — ${s.title}` : ""}
+                    {s.isCancelled ? " (cancelled)" : s.marked > 0 ? " ✓" : ""}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex items-center gap-2">
@@ -187,10 +200,13 @@ export function AttendanceRegister({
                   </th>
                   {sessions.map((session) => (
                     <th
-                      key={session.date}
+                      key={session.id}
                       className="whitespace-nowrap border-l border-border px-3 py-3 text-center text-xs font-medium text-muted-foreground"
                     >
-                      {formatDate(session.date)}
+                      <span className={session.isCancelled ? "line-through" : undefined}>
+                        {session.number}
+                      </span>
+                      <span className="block font-normal">{formatDate(session.meetsOn)}</span>
                     </th>
                   ))}
                 </tr>
@@ -202,16 +218,18 @@ export function AttendanceRegister({
                       {student.name}
                     </td>
                     {sessions.map((session) => {
-                      const status = student.history[session.date] ?? "";
+                      const status = student.history[session.id] ?? "";
                       return (
                         <td
-                          key={session.date}
+                          key={session.id}
                           className="border-l border-border px-3 py-2 text-center"
                           // The letter is the information; colour only reinforces it.
                           title={
-                            status
-                              ? `${STATUSES.find((s) => s.value === status)?.label} on ${session.date}`
-                              : "Not recorded"
+                            session.isCancelled
+                              ? "Cancelled — not counted"
+                              : status
+                                ? `${STATUSES.find((s) => s.value === status)?.label} on ${session.meetsOn}`
+                                : "Not recorded"
                           }
                         >
                           <span
@@ -235,7 +253,8 @@ export function AttendanceRegister({
             </table>
           </div>
           <p className="mt-3 text-sm text-muted-foreground">
-            P present · L late · A absent · E excused · · not recorded
+            P present · L late · A absent · E excused · · not recorded. A struck-through
+            number is a cancelled session, counted against nobody.
           </p>
         </>
       ) : null}
