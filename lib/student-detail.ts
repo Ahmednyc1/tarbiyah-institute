@@ -8,6 +8,9 @@ export type DetailAssignment = {
   isPublished: boolean;
   score: number | null;
   feedback: string | null;
+  /** Who set this mark and when. Staff only — a student is not shown it. */
+  markedBy: string | null;
+  markedAt: string | null;
 };
 
 export type DetailSession = { date: string; status: string; note: string | null };
@@ -100,7 +103,10 @@ export async function getEnrollmentDetail(
         .order("due_date", { nullsFirst: false }),
       supabase
         .from("student_grades")
-        .select("assignment_id, score, feedback")
+        // graded_by/graded_at answer "who changed this, and when" — the only
+        // question there is an answer to when somebody queries a certificate
+        // months later.
+        .select("assignment_id, score, feedback, graded_at, people ( title, first_name, last_name )")
         .eq("enrollment_id", enrollmentId),
       supabase
         .from("attendance")
@@ -119,10 +125,20 @@ export async function getEnrollmentDetail(
     ]);
 
   const grades = new Map(
-    (gradesRes.data ?? []).map((g) => [
-      g.assignment_id as string,
-      { score: g.score as number | null, feedback: g.feedback as string | null },
-    ]),
+    (gradesRes.data ?? []).map((g) => {
+      const marker = g.people;
+      return [
+        g.assignment_id as string,
+        {
+          score: g.score as number | null,
+          feedback: g.feedback as string | null,
+          markedAt: g.graded_at as string | null,
+          markedBy: marker
+            ? [marker.title, marker.first_name, marker.last_name].filter(Boolean).join(" ")
+            : null,
+        },
+      ];
+    }),
   );
 
   const scored = new Map(
@@ -157,6 +173,8 @@ export async function getEnrollmentDetail(
           isPublished: a.is_published,
           score: grades.get(a.id)?.score ?? null,
           feedback: grades.get(a.id)?.feedback ?? null,
+          markedAt: grades.get(a.id)?.markedAt ?? null,
+          markedBy: grades.get(a.id)?.markedBy ?? null,
         })),
     };
   });

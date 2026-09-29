@@ -169,14 +169,7 @@ export type Database = {
             foreignKeyName: "attendance_recorded_by_fkey"
             columns: ["recorded_by"]
             isOneToOne: false
-            referencedRelation: "teacher_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "attendance_recorded_by_fkey"
-            columns: ["recorded_by"]
-            isOneToOne: false
-            referencedRelation: "teachers"
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]
@@ -688,14 +681,7 @@ export type Database = {
             foreignKeyName: "student_grades_graded_by_fkey"
             columns: ["graded_by"]
             isOneToOne: false
-            referencedRelation: "teacher_directory"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "student_grades_graded_by_fkey"
-            columns: ["graded_by"]
-            isOneToOne: false
-            referencedRelation: "teachers"
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]

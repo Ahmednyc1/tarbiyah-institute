@@ -53,9 +53,9 @@ export async function saveGrades(_prev: SaveState, formData: FormData): Promise<
       assignment_id: match[2],
       score,
       graded_at: score === null ? null : new Date().toISOString(),
-      // Null when an admin who is not a teacher marks something — graded_by
-      // references teachers, so there is no value that can represent them.
-      graded_by: score === null ? null : viewer.teacherId,
+      // The person, not the teacher. An administrator who is not a teacher
+      // marks work here too, and used to be recorded as nobody at all.
+      graded_by: score === null ? null : viewer.personId,
     });
   }
 

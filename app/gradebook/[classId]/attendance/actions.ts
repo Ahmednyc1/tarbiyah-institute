@@ -53,7 +53,7 @@ export async function saveRegister(
       enrollment_id: match[1],
       class_date: classDate,
       status,
-      recorded_by: viewer.teacherId,
+      recorded_by: viewer.personId,
     });
   }
 

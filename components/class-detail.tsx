@@ -197,6 +197,15 @@ export function ClassDetail({
                           {item.feedback}
                         </p>
                       ) : null}
+                      {/* Staff only. A student seeing "marked by" invites an
+                          argument with a name attached; staff need it to answer
+                          "who changed this, and when" months afterwards. */}
+                      {audience === "staff" && item.markedBy ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Marked by {item.markedBy}
+                          {item.markedAt ? ` · ${formatDate(item.markedAt)}` : ""}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="text-right">
