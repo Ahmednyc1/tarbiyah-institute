@@ -4,9 +4,11 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CalendarDays, GraduationCap, MapPin, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CheckoutButton } from "@/components/checkout-button";
 import { InstructorDialog, Portrait } from "@/components/instructor-dialog";
 import { getViewer } from "@/lib/account";
 import { formatFee } from "@/lib/format";
+import { isChargeable, stripeIsConfigured } from "@/lib/stripe";
 import { teacherPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 
@@ -72,12 +74,16 @@ export async function generateMetadata({
   };
 }
 
-// Registration is completed in person until a payment provider is settled.
-// Kept here rather than inline so there is one place to change when it is.
+// The desk stays a real option even with card payment working: not everybody
+// carries a card, and zakat or sadaqah support cannot be a button — it is a
+// conversation.
 const CONTACT_EMAIL = "admissions@mastarbiya.org";
 
-export default async function RegisterPage({ params }: PageProps<"/register/[classId]">) {
-  const { classId } = await params;
+export default async function RegisterPage({
+  params,
+  searchParams,
+}: PageProps<"/register/[classId]">) {
+  const [{ classId }, query] = await Promise.all([params, searchParams]);
   const supabase = await createClient();
 
   const [{ data: cls }, { data: availability }, viewer] = await Promise.all([
@@ -121,6 +127,16 @@ export default async function RegisterPage({ params }: PageProps<"/register/[cla
   // to change its status that morning.
   const hasBegun = cls.start_date !== null && cls.start_date <= new Date().toISOString().slice(0, 10);
   const openForRegistration = cls.status === "open" && !isFull && !hasBegun;
+  // Absent keys are not an error — the page must still render its details and
+  // its desk instructions on a machine with no Stripe configuration at all.
+  //
+  // The fee matters as much as the keys. Stripe refuses a charge under 50
+  // cents, so a free or nearly-free class would render "Pay $0 and register"
+  // — a button whose only possible outcome is an error message. Those classes
+  // fall back to the desk, which is where a waived or zero fee is settled
+  // anyway.
+  const canPayOnline = stripeIsConfigured() && isChargeable(Number(cls.registration_fee));
+  const cancelled = query.cancelled === "1";
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-20">
@@ -245,40 +261,83 @@ export default async function RegisterPage({ params }: PageProps<"/register/[cla
         </Panel>
       ) : (
         <Panel tone="plain" title="How to register">
-          <p>
-            Registration is completed in person at the masjid. Speak to the institute desk after
-            Jumu&apos;ah, or email{" "}
-            <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
-              {CONTACT_EMAIL}
-            </a>
-            , and bring the {formatFee(Number(cls.registration_fee))} tuition. Your place is
-            confirmed once it is paid.
-          </p>
-
-          {viewer ? (
-            <p className="mt-4">
-              Your account is ready — once you are enrolled, this class and your grades appear in{" "}
-              <Link href="/portal" className="text-primary hover:underline">
-                your portal
-              </Link>{" "}
-              automatically.
+          {cancelled ? (
+            <p className="mb-5 rounded-md border border-border bg-secondary px-4 py-3 text-sm">
+              Payment cancelled — nothing was charged, and your seat is still held for a few more
+              minutes if you would like to try again.
             </p>
+          ) : null}
+
+          {canPayOnline ? (
+            <>
+              <p>
+                Pay online and your place is confirmed the moment the payment clears. Your course,
+                marks and attendance then appear in your portal automatically.
+              </p>
+
+              {viewer ? (
+                <CheckoutButton classId={classId} fee={formatFee(Number(cls.registration_fee))} />
+              ) : (
+                <>
+                  <p className="mt-4">
+                    You will need an account first, so your marks, attendance and certificate have
+                    somewhere to live.
+                  </p>
+                  <Button asChild className="mt-5 bg-gold text-gold-foreground hover:bg-gold/90">
+                    <Link href={`/auth?next=/register/${classId}`}>Sign in and register</Link>
+                  </Button>
+                </>
+              )}
+
+              <p className="mt-6 border-t border-border pt-5 text-sm text-muted-foreground">
+                You can also register in person — speak to the institute desk after Jumu&apos;ah,
+                or email{" "}
+                <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
+                  {CONTACT_EMAIL}
+                </a>
+                . Zakat and sadaqah support is available; ask at the desk, and it stays between you
+                and the institute.
+              </p>
+            </>
           ) : (
             <>
-              <p className="mt-4">
-                Create your account now and it will be waiting, so your marks, attendance and
-                certificate are there from the first week.
+              <p>
+                Registration is completed in person at the masjid. Speak to the institute desk after
+                Jumu&apos;ah, or email{" "}
+                <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
+                  {CONTACT_EMAIL}
+                </a>
+                , and bring the {formatFee(Number(cls.registration_fee))} tuition. Your place is
+                confirmed once it is paid.
               </p>
-              <Button asChild className="mt-5 bg-gold text-gold-foreground hover:bg-gold/90">
-                <Link href={`/auth?next=/register/${classId}`}>Create your account</Link>
-              </Button>
+
+              {viewer ? (
+                <p className="mt-4">
+                  Your account is ready — once you are enrolled, this class and your grades appear
+                  in{" "}
+                  <Link href="/portal" className="text-primary hover:underline">
+                    your portal
+                  </Link>{" "}
+                  automatically.
+                </p>
+              ) : (
+                <>
+                  <p className="mt-4">
+                    Create your account now and it will be waiting, so your marks, attendance and
+                    certificate are there from the first week.
+                  </p>
+                  <Button asChild className="mt-5 bg-gold text-gold-foreground hover:bg-gold/90">
+                    <Link href={`/auth?next=/register/${classId}`}>Create your account</Link>
+                  </Button>
+                </>
+              )}
+
+              <p className="mt-6 text-sm text-muted-foreground">
+                Zakat and sadaqah support is available — ask at the desk, and it stays between you
+                and the institute.
+              </p>
             </>
           )}
-
-          <p className="mt-6 text-sm text-muted-foreground">
-            Online card payment is coming. Zakat and sadaqah support is available — ask at the
-            desk, and it stays between you and the institute.
-          </p>
         </Panel>
       )}
     </div>

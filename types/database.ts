@@ -925,6 +925,10 @@ export type Database = {
       }
     }
     Functions: {
+      attach_checkout_session: {
+        Args: { p_hold_id: string; p_session_id: string; p_status?: string }
+        Returns: undefined
+      }
       delete_course: { Args: { p_course_id: string }; Returns: undefined }
       enrol_person: {
         Args: {

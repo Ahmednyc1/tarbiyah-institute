@@ -1,0 +1,31 @@
+-- ============================================================================
+-- Tarbiyah Institute — the webhook could not write to seat_holds
+-- ============================================================================
+-- 20260924120000 granted seat_holds to `authenticated` and to nobody else.
+-- service_role was never given anything, and it is not a member of postgres,
+-- so it inherited nothing either — the same trap that 20260924120500 had to
+-- fix for redeem_hold, here for the table rather than the function.
+--
+-- BYPASSRLS IS NOT A GRANT. service_role skips every policy, which makes it
+-- easy to assume it can reach everything; it still needs ordinary table
+-- privileges first, and a missing GRANT stops it before any policy is
+-- consulted. RLS was never the thing in the way.
+--
+-- What this would have cost: the webhook writes the Stripe session id onto the
+-- hold before redeeming it, because redeem_hold reads that column to use as
+-- the payment's reference. The write would have raised "permission denied for
+-- table seat_holds", the handler would have returned 500, and Stripe would
+-- have retried for days — every attempt failing identically. The money would
+-- have been taken and no enrollment created, which is the single worst
+-- outcome this system has.
+--
+-- Found by calling the table with the service key instead of assuming, after
+-- a successful redeem_hold made it look as though the webhook had everything
+-- it needed.
+--
+-- SELECT and UPDATE only. The webhook never inserts a hold — holds are taken
+-- by the student through hold_seat — and never deletes one, because a
+-- released hold is the record that answers "I paid and I'm not on the list".
+-- ============================================================================
+
+grant select, update on public.seat_holds to service_role;

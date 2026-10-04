@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template, which holds placeholders only and is the one record
+# of which variables this app needs. Keep it that way: never a real key.
+!.env.example
 
 # vercel
 .vercel

@@ -49,9 +49,14 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Everything except static assets and images — those never need a session
-     * and refreshing on them wastes a round trip per file.
+     * Everything except static assets, images, and the Stripe webhook.
+     *
+     * Static files never need a session and refreshing on them wastes a round
+     * trip per file. The webhook carries no cookies at all — it is
+     * authenticated by Stripe's signature — so the getUser() call below would
+     * be a guaranteed-useless network hop on the critical path of recording
+     * somebody's payment, inside a request Stripe gives up on after 20s.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/stripe/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
