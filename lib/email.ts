@@ -54,6 +54,13 @@ export type SendEmailInput = {
   personId?: string | null;
   classId?: string | null;
   /**
+   * What the email was about — a session id, an assignment id. Recorded so
+   * `alreadySent` can answer "has this gone out?" durably, which Resend's
+   * idempotency key cannot: that is honoured for 24 hours, and a teacher who
+   * republishes a week later would notify everybody a second time.
+   */
+  contextId?: string | null;
+  /**
    * Resend refuses a second send carrying a key it has already seen. Pass one
    * wherever the caller might run twice — above all the Stripe webhook, which
    * is redelivered on any non-2xx and would otherwise send a second receipt.
@@ -64,7 +71,8 @@ export type SendEmailInput = {
 };
 
 export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; id?: string }> {
-  const { kind, to, subject, html, text, personId, classId, idempotencyKey, scheduledAt } = input;
+  const { kind, to, subject, html, text, personId, classId, contextId, idempotencyKey, scheduledAt } =
+    input;
 
   if (!to) {
     // Nothing to send to and nothing useful to log against. Common and benign:
@@ -75,7 +83,7 @@ export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; i
 
   if (!emailIsConfigured()) {
     console.warn(`[email] ${kind} to ${to} skipped — RESEND_API_KEY is not set`);
-    await record({ kind, to, subject, personId, classId, status: "failed", error: "not configured" });
+    await record({ kind, to, subject, personId, classId, contextId, status: "failed", error: "not configured" });
     return { ok: false };
   }
 
@@ -115,6 +123,7 @@ export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; i
     subject,
     personId,
     classId,
+    contextId,
     providerId,
     status: failure ? "failed" : "sent",
     error: failure,
@@ -136,6 +145,13 @@ async function record(row: {
   subject: string;
   personId?: string | null;
   classId?: string | null;
+  /**
+   * What the email was about — a session id, an assignment id. Recorded so
+   * `alreadySent` can answer "has this gone out?" durably, which Resend's
+   * idempotency key cannot: that is honoured for 24 hours, and a teacher who
+   * republishes a week later would notify everybody a second time.
+   */
+  contextId?: string | null;
   providerId?: string;
   status: "sent" | "failed";
   error?: string;
@@ -148,6 +164,7 @@ async function record(row: {
       subject: row.subject,
       person_id: row.personId ?? null,
       class_id: row.classId ?? null,
+      context_id: row.contextId ?? null,
       provider_id: row.providerId ?? null,
       status: row.status,
       error: row.error ?? null,
@@ -155,5 +172,36 @@ async function record(row: {
     if (error) console.error(`[email] could not log ${row.kind} to ${row.to}: ${error.message}`);
   } catch (cause) {
     console.error(`[email] could not log ${row.kind} to ${row.to}`, cause);
+  }
+}
+
+/**
+ * Has a message of this kind already gone out about this thing?
+ *
+ * Only successful sends count. A row marked `failed` is a record of an attempt
+ * that nobody received, so it must not stop a later one from being made.
+ *
+ * On error it returns FALSE — "no, go ahead". A database hiccup should not
+ * silently suppress a notification a class is waiting for; the worse of the
+ * two failures is the email nobody gets.
+ */
+export async function alreadySent(kind: EmailKind, contextId: string): Promise<boolean> {
+  try {
+    const supabase = createAdminClient();
+    const { count, error } = await supabase
+      .from("emails")
+      .select("id", { head: true, count: "exact" })
+      .eq("kind", kind)
+      .eq("context_id", contextId)
+      .eq("status", "sent");
+
+    if (error) {
+      console.error(`[email] could not check ${kind} for ${contextId}: ${error.message}`);
+      return false;
+    }
+    return (count ?? 0) > 0;
+  } catch (cause) {
+    console.error(`[email] could not check ${kind} for ${contextId}`, cause);
+    return false;
   }
 }

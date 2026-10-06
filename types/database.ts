@@ -419,6 +419,7 @@ export type Database = {
       emails: {
         Row: {
           class_id: string | null
+          context_id: string | null
           created_at: string
           error: string | null
           id: string
@@ -431,6 +432,7 @@ export type Database = {
         }
         Insert: {
           class_id?: string | null
+          context_id?: string | null
           created_at?: string
           error?: string | null
           id?: string
@@ -443,6 +445,7 @@ export type Database = {
         }
         Update: {
           class_id?: string | null
+          context_id?: string | null
           created_at?: string
           error?: string | null
           id?: string
@@ -989,6 +992,14 @@ export type Database = {
       attach_checkout_session: {
         Args: { p_hold_id: string; p_session_id: string; p_status?: string }
         Returns: undefined
+      }
+      class_roster_email_context: {
+        Args: { p_class_id: string }
+        Returns: {
+          email: string
+          first_name: string
+          person_id: string
+        }[]
       }
       delete_course: { Args: { p_course_id: string }; Returns: undefined }
       enrol_person: {

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { notifyClassSessionPublished } from "@/lib/emails/notify-class";
 import { NOT_ALLOWED, denied, graderViewer } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
@@ -60,7 +61,18 @@ export async function saveSession(_prev: SessionState, formData: FormData): Prom
     return { error: "A recording link must start with http:// or https://" };
   }
 
+  const publishing = formData.get("isPublished") === "on";
+
+  // What it was before, so the crossing can be told from an ordinary save.
+  // A teacher saves repeatedly — fixing a typo, correcting a date — and only
+  // unpublished-to-published should reach thirty inboxes.
   const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("class_sessions")
+    .select("is_published")
+    .eq("id", sessionId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("class_sessions")
     .update({
@@ -70,13 +82,23 @@ export async function saveSession(_prev: SessionState, formData: FormData): Prom
       summary: String(formData.get("summary") ?? "").trim() || null,
       recording_url: recording || null,
       is_cancelled: formData.get("isCancelled") === "on",
-      is_published: formData.get("isPublished") === "on",
+      is_published: publishing,
     })
     .eq("id", sessionId);
 
   if (error) return { error: error.message };
 
   refresh(classId);
+
+  // After the save, and unable to undo it. notifyClassSessionPublished never
+  // throws; a mail problem must not make a teacher think their edit was lost.
+  // A cancelled session is not announced — nobody wants "the recording is up"
+  // for a class that did not run.
+  if (publishing && !before?.is_published && formData.get("isCancelled") !== "on") {
+    const sent = await notifyClassSessionPublished(classId, sessionId);
+    if (sent > 0) return { ok: `Saved. ${sent} student${sent === 1 ? "" : "s"} notified.` };
+  }
+
   return { ok: "Saved." };
 }
 

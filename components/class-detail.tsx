@@ -1,3 +1,4 @@
+import { PlayCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatFee } from "@/lib/format";
 import type { EnrollmentDetail } from "@/lib/student-detail";
@@ -228,6 +229,59 @@ export function ClassDetail({
             )}
           </section>
         ))}
+
+      {/* What was covered, and anything the teacher posted with it */}
+      {detail.materials.length > 0 ? (
+        <section className="mt-12">
+          <h2 className="font-display text-2xl text-primary">Sessions</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            What each meeting covered. Recordings appear here once the instructor posts them.
+          </p>
+          <ul className="mt-4 space-y-3">
+            {detail.materials.map((item) => (
+              <li
+                key={item.number}
+                className={cn(
+                  "rounded-lg border border-border bg-card p-4 shadow-card",
+                  item.cancelled && "opacity-60",
+                )}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-foreground/90">
+                      <span className="text-muted-foreground">{item.number}.</span>{" "}
+                      {item.title ?? `Session ${item.number}`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{formatDate(item.date)}</p>
+                  </div>
+                  {item.cancelled ? (
+                    <span className="rounded-md bg-secondary px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                      Cancelled
+                    </span>
+                  ) : item.recordingUrl ? (
+                    /* The recording lives on YouTube or similar, so it opens away
+                       from the site rather than pretending to be part of it. */
+                    <a
+                      href={item.recordingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary-deep"
+                    >
+                      <PlayCircle className="h-3.5 w-3.5" />
+                      Watch the recording
+                    </a>
+                  ) : null}
+                </div>
+                {item.summary ? (
+                  <p className="mt-3 border-t border-border/60 pt-3 text-sm leading-relaxed text-foreground/75">
+                    {item.summary}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Attendance register */}
       {detail.sessions.length > 0 ? (

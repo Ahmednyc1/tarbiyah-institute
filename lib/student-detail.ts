@@ -23,6 +23,22 @@ export type DetailSession = {
   note: string | null;
 };
 
+/**
+ * A session the teacher has made visible, and whatever came with it.
+ *
+ * Separate from DetailSession, which exists only where there is an attendance
+ * row. A recording belongs to the meeting whether or not the register was
+ * taken, and a student who missed a week is exactly who wants it.
+ */
+export type SessionMaterial = {
+  number: number;
+  date: string;
+  title: string | null;
+  summary: string | null;
+  recordingUrl: string | null;
+  cancelled: boolean;
+};
+
 export type DetailCategory = {
   id: string;
   name: string;
@@ -63,6 +79,7 @@ export type EnrollmentDetail = {
   paymentStatus: string;
   categories: DetailCategory[];
   sessions: DetailSession[];
+  materials: SessionMaterial[];
 };
 
 /**
@@ -97,8 +114,15 @@ export async function getEnrollmentDetail(
 
   const classId = enrollment.class_id;
 
-  const [categoriesRes, assignmentsRes, gradesRes, attendanceRes, catScoresRes, totalRes] =
-    await Promise.all([
+  const [
+    categoriesRes,
+    assignmentsRes,
+    gradesRes,
+    attendanceRes,
+    catScoresRes,
+    totalRes,
+    materialsRes,
+  ] = await Promise.all([
       supabase
         .from("grade_categories")
         .select("id, name, weight, position, source")
@@ -130,6 +154,16 @@ export async function getEnrollmentDetail(
         .select("current_score, weight_graded_so_far")
         .eq("enrollment_id", enrollmentId)
         .maybeSingle(),
+      // Published sessions only. `class_sessions_read_enrolled` already limits
+      // a student to the published ones, so this filter is what staff see too
+      // — on this page the point is to show what the student sees, and the
+      // gradebook has its own editor for drafts.
+      supabase
+        .from("class_sessions")
+        .select("session_number, meets_on, title, summary, recording_url, is_cancelled")
+        .eq("class_id", classId)
+        .eq("is_published", true)
+        .order("session_number"),
     ]);
 
   const grades = new Map(
@@ -223,5 +257,13 @@ export async function getEnrollmentDetail(
         note: a.note as string | null,
       }))
       .sort((x, y) => x.number - y.number),
+    materials: (materialsRes.data ?? []).map((s) => ({
+      number: s.session_number,
+      date: s.meets_on,
+      title: s.title,
+      summary: s.summary,
+      recordingUrl: s.recording_url,
+      cancelled: s.is_cancelled,
+    })),
   };
 }
