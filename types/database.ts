@@ -416,6 +416,67 @@ export type Database = {
         }
         Relationships: []
       }
+      emails: {
+        Row: {
+          class_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          kind: string
+          person_id: string | null
+          provider_id: string | null
+          status: string
+          subject: string
+          to_address: string
+        }
+        Insert: {
+          class_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind: string
+          person_id?: string | null
+          provider_id?: string | null
+          status: string
+          subject: string
+          to_address: string
+        }
+        Update: {
+          class_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind?: string
+          person_id?: string | null
+          provider_id?: string | null
+          status?: string
+          subject?: string
+          to_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "class_availability"
+            referencedColumns: ["class_id"]
+          },
+          {
+            foreignKeyName: "emails_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrollments: {
         Row: {
           amount_due: number
@@ -940,6 +1001,23 @@ export type Database = {
           p_phone?: string
         }
         Returns: string
+      }
+      enrollment_email_context: {
+        Args: { p_enrollment_id: string }
+        Returns: {
+          amount_due: number
+          amount_paid: number
+          course_code: string
+          course_title: string
+          email: string
+          first_name: string
+          full_name: string
+          location: string
+          meeting_schedule: string
+          person_id: string
+          start_date: string
+          term: string
+        }[]
       }
       generate_sessions: {
         Args: {

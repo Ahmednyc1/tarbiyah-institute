@@ -1,4 +1,6 @@
 import type Stripe from "stripe";
+import { sendEmail } from "@/lib/email";
+import { enrollmentConfirmed } from "@/lib/emails/enrollment-confirmed";
 import { stripeClient, toDollars } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -150,6 +152,90 @@ async function bankPayment(session: Stripe.Checkout.Session) {
   if (error) throw new Error(`redeem_hold failed for ${holdId}: ${error.message}`);
 
   console.info(`[stripe-webhook] enrolled ${enrollmentId} from hold ${holdId} (${session.id})`);
+
+  // Deliberately last, and deliberately unable to fail the handler. The seat
+  // is already theirs; a Resend outage must not undo that by making this throw
+  // and sending Stripe away to retry a payment that was banked correctly.
+  // sendEmail never throws, so there is nothing here to guard against.
+  if (enrollmentId) {
+    await confirmByEmail(supabase, enrollmentId, session);
+  }
+}
+
+/**
+ * "You are registered", once the enrollment is real.
+ *
+ * The context comes from a SECURITY DEFINER function rather than from reading
+ * people and classes directly, because service_role has no grant on either —
+ * and widening that for the sake of one email would trade a precise hole for
+ * a broad one.
+ *
+ * The idempotency key is the Stripe session. Stripe redelivers on any non-2xx,
+ * and without it a student who triggered one retry would get two receipts.
+ */
+async function confirmByEmail(
+  supabase: ReturnType<typeof createAdminClient>,
+  enrollmentId: string,
+  session: Stripe.Checkout.Session,
+) {
+  const { data, error } = await supabase.rpc("enrollment_email_context", {
+    p_enrollment_id: enrollmentId,
+  });
+
+  if (error) {
+    console.error(`[stripe-webhook] no email context for ${enrollmentId}: ${error.message}`);
+    return;
+  }
+
+  const ctx = data?.[0];
+  if (!ctx) {
+    console.error(`[stripe-webhook] no email context for ${enrollmentId}`);
+    return;
+  }
+
+  // The address on file wins; the one they typed at Stripe is the fallback for
+  // somebody enrolled at the desk whose record has no email yet.
+  const to = ctx.email ?? session.customer_email ?? null;
+
+  // Stripe hosts a receipt page for every successful charge, whether or not it
+  // emails one — that depends on a dashboard setting, and it sends none at all
+  // for test payments. Linking the page is the only claim about receipts we can
+  // make honestly. The lookup is allowed to fail: a missing link costs a line
+  // of the email, and is not worth failing a delivered enrollment over.
+  let receiptUrl: string | null = null;
+  try {
+    const full = await stripeClient().checkout.sessions.retrieve(session.id, {
+      expand: ["payment_intent.latest_charge"],
+    });
+    const intent = full.payment_intent;
+    const charge = typeof intent === "object" && intent ? intent.latest_charge : null;
+    if (typeof charge === "object" && charge) receiptUrl = charge.receipt_url;
+  } catch (cause) {
+    console.warn(`[stripe-webhook] no receipt url for ${session.id}`, cause);
+  }
+
+  const { subject, html, text } = enrollmentConfirmed({
+    firstName: ctx.first_name,
+    courseCode: ctx.course_code,
+    courseTitle: ctx.course_title,
+    term: ctx.term,
+    meetingSchedule: ctx.meeting_schedule,
+    location: ctx.location,
+    startDate: ctx.start_date,
+    amountPaid: Number(ctx.amount_paid),
+    receiptUrl,
+  });
+
+  await sendEmail({
+    kind: "enrollment_confirmed",
+    to,
+    subject,
+    html,
+    text,
+    personId: ctx.person_id,
+    classId: session.metadata?.class_id ?? null,
+    idempotencyKey: `enrolled:${session.id}`,
+  });
 }
 
 /**
