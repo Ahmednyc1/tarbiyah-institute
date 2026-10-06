@@ -24,6 +24,8 @@ export type EnrollmentEmailContext = {
   location: string | null;
   startDate: string | null;
   amountPaid: number;
+  /** What the course costs. Lets the message tell a payer from a desk enrolment who still owes. */
+  amountDue?: number;
   /** Stripe's hosted receipt. Always exists for a paid charge; absent only if the lookup failed. */
   receiptUrl?: string | null;
 };
@@ -61,6 +63,17 @@ export function enrollmentConfirmed(ctx: EnrollmentEmailContext): {
 
   const subject = `You're registered — ${ctx.courseTitle}`;
 
+  // The same message serves a card payment and a desk enrolment. Somebody who
+  // handed over cash on Friday has paid; somebody the sheikh added to the
+  // roster may owe the whole fee. Telling the second group their payment has
+  // gone through would be a lie, and telling them nothing about money leaves
+  // them to find out at the next session.
+  const owed = Math.max(0, (ctx.amountDue ?? ctx.amountPaid) - ctx.amountPaid);
+  const opening =
+    ctx.amountPaid > 0
+      ? "Your payment has gone through and your place is confirmed."
+      : "Your place is confirmed.";
+
   const rows: Array<[string, string]> = [
     ["Course", `${ctx.courseCode} · ${ctx.courseTitle}`],
     ["Term", ctx.term],
@@ -68,7 +81,8 @@ export function enrollmentConfirmed(ctx: EnrollmentEmailContext): {
   if (ctx.meetingSchedule) rows.push(["Meets", ctx.meetingSchedule]);
   if (ctx.location) rows.push(["Where", ctx.location]);
   if (ctx.startDate) rows.push(["First session", spokenDate(ctx.startDate)]);
-  rows.push(["Paid", formatMoney(ctx.amountPaid)]);
+  if (ctx.amountPaid > 0) rows.push(["Paid", formatMoney(ctx.amountPaid)]);
+  if (owed > 0) rows.push(["Still to pay", `${formatMoney(owed)} — at the desk`]);
 
   const htmlRows = rows
     .map(
@@ -94,7 +108,7 @@ export function enrollmentConfirmed(ctx: EnrollmentEmailContext): {
         <tr>
           <td style="padding:16px 32px 0 32px;color:#1a211d;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;">
             <p style="margin:0 0 14px 0;">Assalamu alaikum ${esc(firstName)},</p>
-            <p style="margin:0 0 20px 0;">Your payment has gone through and your place is confirmed.</p>
+            <p style="margin:0 0 20px 0;">${esc(opening)}</p>
           </td>
         </tr>
         <tr>
@@ -130,7 +144,7 @@ export function enrollmentConfirmed(ctx: EnrollmentEmailContext): {
   const text = [
     `Assalamu alaikum ${firstName},`,
     ``,
-    `Your payment has gone through and your place is confirmed.`,
+    opening,
     ``,
     ...rows.map(([label, value]) => `${label}: ${value}`),
     ``,

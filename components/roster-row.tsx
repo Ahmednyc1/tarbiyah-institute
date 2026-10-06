@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
+import { MailWarning } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   recordPayment,
+  resendConfirmation,
   setEnrollmentStatus,
   waiveFee,
+  type ResendState,
 } from "@/app/admin/classes/[classId]/actions";
 import { formatFee } from "@/lib/format";
 
@@ -17,6 +20,8 @@ export function RosterRow({
   name,
   studentNumber,
   contact,
+  personId,
+  emailUnconfirmed,
   status,
   amountDue,
   amountPaid,
@@ -28,6 +33,9 @@ export function RosterRow({
   name: string;
   studentNumber: string;
   contact: string | null;
+  personId: string | null;
+  /** Has an address on file that nobody has proved reaches them. */
+  emailUnconfirmed: boolean;
   status: string;
   amountDue: number;
   amountPaid: number;
@@ -35,6 +43,10 @@ export function RosterRow({
   waiverNote: string | null;
 }) {
   const [open, setOpen] = useState(false);
+  const [resend, resendAction, resending] = useActionState<ResendState, FormData>(
+    resendConfirmation,
+    null,
+  );
   const outstanding = Math.max(0, amountDue - amountPaid);
   const dropped = status === "dropped";
 
@@ -49,6 +61,34 @@ export function RosterRow({
             {studentNumber}
             {contact ? ` · ${contact}` : ""}
           </span>
+
+          {/* An address nobody has proved. The student keeps their seat either
+              way — this is about whether we can reach them, not whether they
+              are registered. Shown so that silence becomes visible. */}
+          {emailUnconfirmed && !dropped ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                <MailWarning className="h-3 w-3" />
+                Address unconfirmed
+              </span>
+              <form action={resendAction}>
+                <input type="hidden" name="classId" value={classId} />
+                <input type="hidden" name="personId" value={personId ?? ""} />
+                <input type="hidden" name="enrollmentId" value={enrollmentId} />
+                <button
+                  type="submit"
+                  disabled={resending || !personId}
+                  className="text-xs font-medium text-primary underline-offset-2 hover:underline disabled:opacity-50"
+                >
+                  {resending ? "Sending…" : "Send another link"}
+                </button>
+              </form>
+              {resend?.ok ? <span className="text-xs text-primary">{resend.ok}</span> : null}
+              {resend?.error ? (
+                <span className="text-xs text-destructive">{resend.error}</span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

@@ -223,6 +223,7 @@ async function confirmByEmail(
     location: ctx.location,
     startDate: ctx.start_date,
     amountPaid: Number(ctx.amount_paid),
+    amountDue: Number(ctx.amount_due),
     receiptUrl,
   });
 

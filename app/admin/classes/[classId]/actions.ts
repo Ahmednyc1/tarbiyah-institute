@@ -3,6 +3,7 @@
 import { promises as dns } from "node:dns";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { confirmIfUnproved, sendAddressConfirmation } from "@/lib/emails/confirm-address";
 import { NOT_ALLOWED, adminViewer, denied } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,7 +54,7 @@ async function callEnrol(
   values?: NonNullable<RosterState>["values"],
 ): Promise<RosterState> {
   const supabase = await createClient();
-  const { error } = await supabase.rpc("enrol_person", args as never);
+  const { data: enrollmentId, error } = await supabase.rpc("enrol_person", args as never);
 
   if (error) {
     if (error.code === "23505") {
@@ -66,7 +67,17 @@ async function callEnrol(
     return { error: error.message, values };
   }
 
-  return { ok: "Student enrolled." };
+  // The address was typed by whoever is standing at the desk, and nothing has
+  // checked that it reaches the person named. Ask — and say on screen whether
+  // the asking worked, so a silent failure is not mistaken for a confirmed
+  // student. Never throws; the enrolment has already succeeded either way.
+  const asked = enrollmentId ? await confirmIfUnproved(enrollmentId as string) : false;
+
+  return {
+    ok: asked
+      ? "Student enrolled. We have emailed them to confirm their address — the link lasts 24 hours."
+      : "Student enrolled.",
+  };
 }
 
 export async function enrollExistingPerson(
@@ -241,4 +252,33 @@ export async function setEnrollmentStatus(formData: FormData) {
   await supabase.from("enrollments").update({ status }).eq("id", enrollmentId);
 
   refresh(classId);
+}
+
+export type ResendState = { error?: string; ok?: string } | null;
+
+/**
+ * Send another "is this you" link.
+ *
+ * Necessary rather than a convenience, because the link lasts 24 hours and
+ * somebody enrolled after Jumu'ah who opens their email on Monday will find a
+ * dead one. Issuing a new link invalidates the old, so there is never more
+ * than one live at a time.
+ */
+export async function resendConfirmation(
+  _prev: ResendState,
+  formData: FormData,
+): Promise<ResendState> {
+  if (!(await adminViewer())) return { error: NOT_ALLOWED };
+
+  const classId = String(formData.get("classId") ?? "");
+  const personId = String(formData.get("personId") ?? "");
+  const enrollmentId = String(formData.get("enrollmentId") ?? "");
+  if (!personId) return { error: "Missing person." };
+
+  const ok = await sendAddressConfirmation(personId, enrollmentId || null);
+  if (classId) refresh(classId);
+
+  return ok
+    ? { ok: "Sent — the link lasts 24 hours." }
+    : { error: "Could not send. Check the address on their record." };
 }

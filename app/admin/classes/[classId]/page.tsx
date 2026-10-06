@@ -38,7 +38,7 @@ export default async function RosterPage({
       .from("enrollments")
       .select(
         `id, status, amount_due, amount_paid, payment_status, waiver_note, enrolled_at,
-         students ( id, student_number, people ( id, title, first_name, last_name, email, phone ) )`,
+         students ( id, student_number, people ( id, title, first_name, last_name, email, phone, email_confirmed_at, auth_user_id ) )`,
       )
       .eq("class_id", classId)
       .order("enrolled_at"),
@@ -170,6 +170,10 @@ export default async function RosterPage({
                 }
                 studentNumber={row.students?.student_number ?? ""}
                 contact={person?.email ?? person?.phone ?? null}
+                personId={person?.id ?? null}
+                emailUnconfirmed={Boolean(
+                  person?.email && !person.email_confirmed_at && !person.auth_user_id,
+                )}
                 status={row.status}
                 amountDue={Number(row.amount_due)}
                 amountPaid={Number(row.amount_paid)}
@@ -203,6 +207,10 @@ export default async function RosterPage({
                   }
                   studentNumber={row.students?.student_number ?? ""}
                   contact={person?.email ?? person?.phone ?? null}
+                personId={person?.id ?? null}
+                emailUnconfirmed={Boolean(
+                  person?.email && !person.email_confirmed_at && !person.auth_user_id,
+                )}
                   status={row.status}
                   amountDue={Number(row.amount_due)}
                   amountPaid={Number(row.amount_paid)}

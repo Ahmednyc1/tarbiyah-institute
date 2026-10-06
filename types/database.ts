@@ -416,6 +416,54 @@ export type Database = {
         }
         Relationships: []
       }
+      email_confirmations: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string
+          email: string
+          enrollment_id: string | null
+          expires_at: string
+          id: string
+          person_id: string
+          token_hash: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string
+          email: string
+          enrollment_id?: string | null
+          expires_at: string
+          id?: string
+          person_id: string
+          token_hash: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string
+          email?: string
+          enrollment_id?: string | null
+          expires_at?: string
+          id?: string
+          person_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_confirmations_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_confirmations_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emails: {
         Row: {
           class_id: string | null
@@ -658,6 +706,7 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           email: string | null
+          email_confirmed_at: string | null
           first_name: string
           id: string
           last_name: string
@@ -671,6 +720,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           email?: string | null
+          email_confirmed_at?: string | null
           first_name: string
           id?: string
           last_name: string
@@ -684,6 +734,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           email?: string | null
+          email_confirmed_at?: string | null
           first_name?: string
           id?: string
           last_name?: string
@@ -1009,6 +1060,14 @@ export type Database = {
           person_id: string
         }[]
       }
+      confirm_email: {
+        Args: { p_token_hash: string }
+        Returns: {
+          enrollment_id: string
+          outcome: string
+          person_id: string
+        }[]
+      }
       delete_course: { Args: { p_course_id: string }; Returns: undefined }
       enrol_person: {
         Args: {
@@ -1050,6 +1109,19 @@ export type Database = {
       hold_seat: {
         Args: { p_class_id: string; p_minutes?: number }
         Returns: string
+      }
+      issue_email_confirmation: {
+        Args: {
+          p_enrollment_id?: string
+          p_hours?: number
+          p_person_id: string
+          p_token_hash: string
+        }
+        Returns: {
+          email: string
+          expires_at: string
+          first_name: string
+        }[]
       }
       payments_report: {
         Args: { p_from: string; p_to: string }
