@@ -1,5 +1,6 @@
 import "server-only";
-import { alreadySent, sendEmail } from "@/lib/email";
+import { alreadySent, sendEmail, sentPersonIds } from "@/lib/email";
+import { gradesPublished } from "@/lib/emails/grades-published";
 import { sessionPublished } from "@/lib/emails/session-published";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -100,6 +101,85 @@ export async function notifyClassSessionPublished(
     return sent;
   } catch (cause) {
     console.error(`[notify] session ${sessionId} failed`, cause);
+    return 0;
+  }
+}
+
+/**
+ * "Your mark is up", to the students who actually have one.
+ *
+ * Per recipient rather than per assignment, unlike the session notification.
+ * A teacher may publish with half the class marked and finish on Tuesday; the
+ * second publish must reach the people marked later and nobody else. Whoever
+ * has already been told is filtered out rather than relied on not to crop up.
+ *
+ * Returns how many students were written to. Zero is ordinary: nothing marked
+ * yet, or everybody already told.
+ */
+export async function notifyAssignmentPublished(
+  classId: string,
+  assignmentId: string,
+): Promise<number> {
+  try {
+    const supabase = await createClient();
+
+    const [{ data: assignment }, { data: recipients, error: listError }, told] = await Promise.all([
+      supabase
+        .from("assignments")
+        .select("name, due_date, grade_categories ( name ), classes ( courses ( code, title ) )")
+        .eq("id", assignmentId)
+        .maybeSingle(),
+      supabase.rpc("assignment_marked_recipients", { p_assignment_id: assignmentId }),
+      sentPersonIds("grades_published", assignmentId),
+    ]);
+
+    if (listError) {
+      console.error(`[notify] recipients refused for ${assignmentId}: ${listError.message}`);
+      return 0;
+    }
+
+    const course = assignment?.classes?.courses;
+    if (!assignment || !course) {
+      console.error(`[notify] no assignment or course for ${assignmentId}`);
+      return 0;
+    }
+
+    const pending = (recipients ?? []).filter((r) => !told.has(r.person_id));
+    if (!pending.length) return 0;
+
+    let sent = 0;
+    for (const student of pending) {
+      const { subject, html, text } = gradesPublished({
+        firstName: student.first_name,
+        courseCode: course.code,
+        courseTitle: course.title,
+        assignmentName: assignment.name,
+        dueDate: assignment.due_date,
+        categoryName: assignment.grade_categories?.name ?? null,
+      });
+
+      const { ok } = await sendEmail({
+        kind: "grades_published",
+        to: student.email,
+        subject,
+        html,
+        text,
+        personId: student.person_id,
+        classId,
+        contextId: assignmentId,
+        idempotencyKey: `grades:${assignmentId}:${student.person_id}`,
+      });
+
+      if (ok) sent += 1;
+    }
+
+    console.info(
+      `[notify] assignment ${assignmentId}: ${sent} of ${pending.length} notified ` +
+        `(${told.size} already knew)`,
+    );
+    return sent;
+  } catch (cause) {
+    console.error(`[notify] assignment ${assignmentId} failed`, cause);
     return 0;
   }
 }

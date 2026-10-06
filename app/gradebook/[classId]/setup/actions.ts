@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { notifyAssignmentPublished } from "@/lib/emails/notify-class";
 import { NOT_ALLOWED, denied, graderViewer } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
@@ -89,6 +90,8 @@ export async function updateAssignment(formData: FormData) {
 
   if (!(await graderViewer(classId))) denied();
 
+  const publishing = formData.get("isPublished") === "on";
+
   const supabase = await createClient();
   await supabase
     .from("assignments")
@@ -96,11 +99,21 @@ export async function updateAssignment(formData: FormData) {
       name,
       max_score: maxScore,
       due_date: dueDate || null,
-      is_published: formData.get("isPublished") === "on",
+      is_published: publishing,
     })
     .eq("id", id);
 
   refresh(classId);
+
+  // Only from here, never from createAssignment: an assignment can be created
+  // already published, with nothing marked on it, and "your mark is up" would
+  // be a lie. Notifying is also not gated on a published/unpublished crossing
+  // the way sessions are — a teacher who publishes with half the class marked
+  // and finishes on Tuesday should be able to tell the rest by saving again,
+  // and notifyAssignmentPublished skips whoever has already been told.
+  if (publishing) {
+    await notifyAssignmentPublished(classId, id);
+  }
 }
 
 export async function deleteAssignment(formData: FormData) {

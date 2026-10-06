@@ -205,3 +205,41 @@ export async function alreadySent(kind: EmailKind, contextId: string): Promise<b
     return false;
   }
 }
+
+/**
+ * Which people have already been told, about this particular thing.
+ *
+ * `alreadySent` asks whether a message went out at all, which suits a session:
+ * one announcement, one class. A mark is per person. A teacher may publish an
+ * assignment with half the roster marked, mark the rest on Tuesday, and
+ * publish again — and the second wave must reach the people marked later
+ * without reaching the first group twice.
+ *
+ * One query rather than one per recipient. Only successful sends count, for
+ * the same reason as `alreadySent`: a failed attempt reached nobody.
+ *
+ * On error it returns an EMPTY set — "nobody has been told". The risk is a
+ * duplicate; the alternative risk is silence, and a student who hears twice is
+ * better served than one who never hears at all.
+ */
+export async function sentPersonIds(kind: EmailKind, contextId: string): Promise<Set<string>> {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("emails")
+      .select("person_id")
+      .eq("kind", kind)
+      .eq("context_id", contextId)
+      .eq("status", "sent")
+      .not("person_id", "is", null);
+
+    if (error) {
+      console.error(`[email] could not list ${kind} for ${contextId}: ${error.message}`);
+      return new Set();
+    }
+    return new Set((data ?? []).map((r) => r.person_id as string));
+  } catch (cause) {
+    console.error(`[email] could not list ${kind} for ${contextId}`, cause);
+    return new Set();
+  }
+}

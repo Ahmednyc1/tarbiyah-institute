@@ -989,6 +989,14 @@ export type Database = {
       }
     }
     Functions: {
+      assignment_marked_recipients: {
+        Args: { p_assignment_id: string }
+        Returns: {
+          email: string
+          first_name: string
+          person_id: string
+        }[]
+      }
       attach_checkout_session: {
         Args: { p_hold_id: string; p_session_id: string; p_status?: string }
         Returns: undefined
