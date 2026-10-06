@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -69,6 +69,14 @@ export default async function PaymentsPage({
             <Download className="mr-1.5 h-4 w-4" />
             Download CSV
           </a>
+        </Button>
+        {/* Deliberately not inside the date form: reconciliation asks Stripe a
+            question of its own and carries its own period. */}
+        <Button asChild size="sm" variant="outline">
+          <Link href="/admin/payments/reconcile">
+            <ShieldCheck className="mr-1.5 h-4 w-4" />
+            Reconcile
+          </Link>
         </Button>
       </form>
 
