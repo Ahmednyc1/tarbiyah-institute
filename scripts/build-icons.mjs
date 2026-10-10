@@ -76,7 +76,32 @@ function buildIco(pngs) {
 
 const render = (svg, size) => sharp(Buffer.from(svg)).resize(size, size).png().toBuffer();
 
+/**
+ * The header wordmark, with its transparent padding cut off.
+ *
+ * `Mas_tarbiyah_logo.png` is a 64x64 square, but the artwork inside it only
+ * occupies about 25 of those rows — the rest is empty. Rendered as a square in
+ * the header, roughly 60% of the space the logo takes up is nothing at all,
+ * which is why it reads as small and cramped no matter what size the box is.
+ *
+ * Trimming lets the header size the mark by its real width, so the wordmark
+ * can be visibly larger without the source being enlarged any further than it
+ * already is. It is derived here rather than cropped by hand so that dropping
+ * in a better logo file and re-running this produces the right thing.
+ */
+async function buildWordmark() {
+  const src = join(root, "public", "Mas_tarbiyah_logo.png");
+  const out = join(root, "public", "logo-wordmark.png");
+  const trimmed = await sharp(src).trim().png().toBuffer();
+  const { width, height } = await sharp(trimmed).metadata();
+  writeFileSync(out, trimmed);
+  console.log(`wrote public/logo-wordmark.png  ${width}x${height} (from 64x64)`);
+  return { width, height };
+}
+
 mkdirSync(app, { recursive: true });
+
+await buildWordmark();
 
 writeFileSync(join(app, "icon.svg"), icon);
 
