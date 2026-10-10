@@ -65,16 +65,19 @@ export function SiteHeader({
               must stay equal to the file's real dimensions, since the browser
               derives the rendered height from them.
 
-              w-36 is about as far as a 64px-wide source stretches. Past there
-              the serifs visibly soften, and that is the ceiling until somebody
-              produces the real logo file. */}
+              Sized to sit level with the nav row rather than tower over it:
+              w-28 puts the wordmark at about the height of the Account button
+              beside it. w-36 was legible but dominated the header, and every
+              extra pixel is also softer, since all of this comes from a 64px
+              original. Past about w-40 the serifs visibly break down, and that
+              is the ceiling until somebody produces the real logo file. */}
           <Image
             src="/logo-wordmark.png"
             alt="MAS Tarbiya Institute"
             width={288}
             height={99}
             priority
-            className="h-auto w-24 sm:w-36"
+            className="h-auto w-20 sm:w-28"
           />
         </Link>
 
