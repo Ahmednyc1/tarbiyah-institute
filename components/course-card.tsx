@@ -49,7 +49,15 @@ export function CourseCard({ course }: { course: CatalogueCourse }) {
           </Button>
         ) : (
           <Button disabled className="w-full" variant="secondary">
-            {offering ? "Registration closed" : "Dates to be announced"}
+            {/*
+              "Registration closed" only when there is a class a visitor can
+              see and simply cannot join — mid-term, or full. A course whose
+              last class has finished has no visible class at all (RLS shows
+              the public `open` and `in_progress` only), so it lands here
+              instead, and the institute would rather invite somebody back
+              than tell them they missed it.
+            */}
+            {offering ? "Registration closed" : "Coming soon"}
           </Button>
         )}
       </div>
