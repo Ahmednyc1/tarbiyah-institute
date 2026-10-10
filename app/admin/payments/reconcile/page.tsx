@@ -89,8 +89,20 @@ export default async function ReconcilePage({
         ) : orphans && orphans.length === 0 ? (
           <Panel tone="good" icon={CheckCircle2} title="Nothing is missing">
             <p>
-              All {sessionsChecked} Stripe {sessionsChecked === 1 ? "session" : "sessions"} in this
-              period are accounted for. Every payment has a record against an enrollment.
+              {sessionsChecked === 0
+                ? "Stripe took no payments at all in this period, so there is nothing to account for."
+                : sessionsChecked === 1
+                  ? "The single Stripe session in this period is accounted for."
+                  : `All ${sessionsChecked} Stripe sessions in this period are accounted for.`}
+              {/*
+                "kept" rather than "took" once a refund has been set aside,
+                because a refunded payment was taken and does not have a record
+                here — and saying "every payment Stripe took" would contradict
+                the sentence immediately after it.
+              */}
+              {sessionsChecked > 0
+                ? ` Every payment Stripe ${refundsIgnored > 0 ? "kept" : "took"} has a record against an enrollment here.`
+                : ""}
               {refundNote}
             </p>
           </Panel>
