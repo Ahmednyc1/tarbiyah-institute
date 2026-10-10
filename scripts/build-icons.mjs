@@ -92,11 +92,35 @@ const render = (svg, size) => sharp(Buffer.from(svg)).resize(size, size).png().t
 async function buildWordmark() {
   const src = join(root, "public", "Mas_tarbiyah_logo.png");
   const out = join(root, "public", "logo-wordmark.png");
+
   const trimmed = await sharp(src).trim().png().toBuffer();
-  const { width, height } = await sharp(trimmed).metadata();
-  writeFileSync(out, trimmed);
-  console.log(`wrote public/logo-wordmark.png  ${width}x${height} (from 64x64)`);
-  return { width, height };
+  const natural = await sharp(trimmed).metadata();
+
+  /**
+   * THE ENLARGEMENT HAPPENS HERE, NOT IN THE BROWSER, and that is the whole
+   * point of this step.
+   *
+   * Next's image optimizer refuses to enlarge a file beyond its natural size,
+   * so shipping the trimmed 64px original meant it served 64px into a 144px
+   * box and left the browser to stretch it — about 4.5x on a retina screen,
+   * with the browser's cheap filter. Resampling once here with Lanczos, at the
+   * size the header actually paints, is visibly better than the same
+   * enlargement done at draw time.
+   *
+   * 288 is twice the widest the header renders it (w-36 = 144px), so a retina
+   * display gets one device pixel per image pixel.
+   */
+  const TARGET_WIDTH = 288;
+  const height = Math.round((TARGET_WIDTH * natural.height) / natural.width);
+  writeFileSync(
+    out,
+    await sharp(trimmed).resize(TARGET_WIDTH, height, { kernel: "lanczos3" }).png().toBuffer(),
+  );
+  console.log(
+    `wrote public/logo-wordmark.png  ${TARGET_WIDTH}x${height}` +
+      `  (trimmed to ${natural.width}x${natural.height}, then resampled)`,
+  );
+  return { width: TARGET_WIDTH, height };
 }
 
 mkdirSync(app, { recursive: true });
