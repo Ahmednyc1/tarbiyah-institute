@@ -28,8 +28,19 @@ export default async function ReconcilePage({
   const requested = Number(Array.isArray(query.days) ? query.days[0] : query.days);
   const days = Number.isFinite(requested) && requested > 0 && requested <= 365 ? requested : 90;
 
-  const { orphans, unpaid, sessionsChecked, truncated, stripeError } =
+  const { orphans, unpaid, sessionsChecked, refundsIgnored, truncated, stripeError } =
     await reconcilePayments(days);
+
+  /**
+   * "Nothing is missing" and "nothing is missing, and I set two refunds aside"
+   * are different claims, and the gap between them is exactly where a mistake
+   * would hide. So the page says which one it is making.
+   */
+  const refundNote =
+    refundsIgnored > 0
+      ? ` ${refundsIgnored} refunded ${refundsIgnored === 1 ? "payment was" : "payments were"} ` +
+        `set aside — that money went back to the payer, so there is nothing to record.`
+      : "";
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-16">
@@ -80,6 +91,7 @@ export default async function ReconcilePage({
             <p>
               All {sessionsChecked} Stripe {sessionsChecked === 1 ? "session" : "sessions"} in this
               period are accounted for. Every payment has a record against an enrollment.
+              {refundNote}
             </p>
           </Panel>
         ) : orphans ? (
@@ -88,6 +100,7 @@ export default async function ReconcilePage({
               <p>
                 Stripe took this money and nothing in the system recorded it. Each of these is
                 somebody who paid for a seat.
+                {refundNote}
               </p>
             </Panel>
 
@@ -126,6 +139,20 @@ export default async function ReconcilePage({
                         ? "The seat was given out, so the student is enrolled — only the payment record is missing. Record it by hand on the class roster."
                         : "The seat was never given out. Enrol them on the class roster; if the class is now full, raise its capacity by one in Courses first."}
                   </p>
+
+                  {o.refunded > 0 ? (
+                    <p className="mt-2 text-sm text-foreground/75">
+                      {formatMoney(o.refunded)} of this has already been refunded. The rest was
+                      kept, so there is still something to account for.
+                    </p>
+                  ) : null}
+
+                  {o.refundUnknown ? (
+                    <p className="mt-2 text-sm text-foreground/75">
+                      Stripe could not be asked whether this one was refunded, so it is listed
+                      anyway — check the dashboard before acting on it.
+                    </p>
+                  ) : null}
                 </li>
               ))}
             </ul>

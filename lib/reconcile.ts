@@ -32,6 +32,16 @@ const DEFAULT_DAYS = 90;
  */
 const MAX_SESSIONS = 2000;
 
+/**
+ * How many suspected orphans we will ask Stripe about individually.
+ *
+ * Should always be zero. If it is ever large, something has gone wrong that a
+ * refund check will not fix, and spending hundreds of API calls to decorate the
+ * alarm is not the right response — so past this point payments are listed
+ * unchecked, which errs toward shouting.
+ */
+const MAX_REFUND_CHECKS = 50;
+
 export type OrphanedPayment = {
   sessionId: string;
   paidAt: string;
@@ -43,6 +53,14 @@ export type OrphanedPayment = {
   holdRedeemed: boolean;
   /** No hold at all: this session was not started by this system. */
   holdMissing: boolean;
+  /**
+   * Money already given back, for a payment that was only partly refunded.
+   * Zero for the ordinary case. A *fully* refunded payment never appears in
+   * this list at all.
+   */
+  refunded: number;
+  /** Stripe could not be asked whether this was refunded, so it is listed anyway. */
+  refundUnknown: boolean;
 };
 
 export type UnpaidEnrollment = {
@@ -59,6 +77,13 @@ export type Reconciliation = {
   orphans: OrphanedPayment[] | null;
   unpaid: UnpaidEnrollment[];
   sessionsChecked: number;
+  /**
+   * Payments that had no record here *and* turned out to be fully refunded, so
+   * they were dropped from the alarm. Reported rather than hidden: "nothing is
+   * missing, and I ignored two refunds" is a different claim from "nothing is
+   * missing", and the difference is where a mistake would hide.
+   */
+  refundsIgnored: number;
   truncated: boolean;
   days: number;
   stripeError: string | null;
@@ -82,6 +107,7 @@ export async function reconcilePayments(days = DEFAULT_DAYS): Promise<Reconcilia
       orphans: null,
       unpaid,
       sessionsChecked: 0,
+      refundsIgnored: 0,
       truncated: false,
       days,
       stripeError: "Online payment is not configured, so there is nothing to compare against.",
@@ -89,8 +115,15 @@ export async function reconcilePayments(days = DEFAULT_DAYS): Promise<Reconcilia
   }
 
   const since = Math.floor(Date.now() / 1000) - days * 86400;
-  const paid: Array<{ id: string; created: number; amount: number; email: string | null; personId: string | null }> =
-    [];
+  const paid: Array<{
+    id: string;
+    created: number;
+    amount: number;
+    email: string | null;
+    personId: string | null;
+    /** Needed only if this one turns out to look orphaned; that is where refunds live. */
+    paymentIntent: string | null;
+  }> = [];
 
   let sessionsChecked = 0;
   let truncated = false;
@@ -120,6 +153,10 @@ export async function reconcilePayments(days = DEFAULT_DAYS): Promise<Reconcilia
         ),
         email: session.customer_email ?? null,
         personId: session.metadata?.person_id || null,
+        paymentIntent:
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : (session.payment_intent?.id ?? null),
       });
     }
   } catch (cause) {
@@ -127,6 +164,7 @@ export async function reconcilePayments(days = DEFAULT_DAYS): Promise<Reconcilia
       orphans: null,
       unpaid,
       sessionsChecked,
+      refundsIgnored: 0,
       truncated,
       days,
       stripeError: cause instanceof Error ? cause.message : String(cause),
@@ -134,7 +172,15 @@ export async function reconcilePayments(days = DEFAULT_DAYS): Promise<Reconcilia
   }
 
   if (!paid.length) {
-    return { orphans: [], unpaid, sessionsChecked, truncated, days, stripeError: null };
+    return {
+      orphans: [],
+      unpaid,
+      sessionsChecked,
+      refundsIgnored: 0,
+      truncated,
+      days,
+      stripeError: null,
+    };
   }
 
   const ids = paid.map((p) => p.id);
@@ -153,9 +199,24 @@ export async function reconcilePayments(days = DEFAULT_DAYS): Promise<Reconcilia
     (holds ?? []).map((h) => [h.stripe_session_id as string, h]),
   );
 
-  const missing = paid.filter((p) => !recorded.has(p.id));
+  const suspect = paid.filter((p) => !recorded.has(p.id));
+
+  // A payment that was given back is not money we failed to record, so asking
+  // Stripe about refunds happens here — after the cheap set difference, and
+  // only for the handful that look wrong. In the normal case `suspect` is
+  // empty and this costs nothing at all.
+  const { missing, refundsIgnored, refundState } = await setAsideRefunds(suspect);
+
   if (!missing.length) {
-    return { orphans: [], unpaid, sessionsChecked, truncated, days, stripeError: null };
+    return {
+      orphans: [],
+      unpaid,
+      sessionsChecked,
+      refundsIgnored,
+      truncated,
+      days,
+      stripeError: null,
+    };
   }
 
   // Only now, and only for the few that are wrong, look up who they are.
@@ -190,12 +251,84 @@ export async function reconcilePayments(days = DEFAULT_DAYS): Promise<Reconcilia
       className: hold?.classes?.courses?.title ?? null,
       holdRedeemed: Boolean(hold?.enrollment_id),
       holdMissing: !hold,
+      refunded: refundState.get(p.id)?.refunded ?? 0,
+      refundUnknown: refundState.get(p.id)?.unknown ?? false,
     };
   });
 
   orphans.sort((a, b) => b.paidAt.localeCompare(a.paidAt));
 
-  return { orphans, unpaid, sessionsChecked, truncated, days, stripeError: null };
+  return { orphans, unpaid, sessionsChecked, refundsIgnored, truncated, days, stripeError: null };
+}
+
+/**
+ * Split suspected orphans into the ones that were refunded and the ones that
+ * are still a problem.
+ *
+ * WHY THIS IS NEEDED AT ALL. A Checkout Session's `payment_status` stays
+ * "paid" forever once it is paid — refunds live on the charge underneath, not
+ * on the session. So a refunded payment looks identical to a lost one from up
+ * here, and the institute's first ever refund made this page cry wolf. An
+ * alarm page that is wrong once is an alarm page nobody reads again.
+ *
+ * Partial refunds stay on the list. Money was kept, so there is still
+ * something to account for, and the page says how much went back.
+ *
+ * WHEN STRIPE CANNOT BE ASKED, THE PAYMENT STAYS ON THE LIST, flagged. Failing
+ * the other way — dropping anything we could not check — would turn an outage
+ * into a silent all-clear, which is the one outcome this whole file exists to
+ * prevent.
+ */
+async function setAsideRefunds<T extends { id: string; paymentIntent: string | null }>(
+  suspect: T[],
+): Promise<{
+  missing: T[];
+  refundsIgnored: number;
+  refundState: Map<string, { refunded: number; unknown: boolean }>;
+}> {
+  const refundState = new Map<string, { refunded: number; unknown: boolean }>();
+  if (!suspect.length) return { missing: suspect, refundsIgnored: 0, refundState };
+
+  const stripe = stripeClient();
+  const missing: T[] = [];
+  let refundsIgnored = 0;
+
+  for (const [index, item] of suspect.entries()) {
+    if (index >= MAX_REFUND_CHECKS || !item.paymentIntent) {
+      // Unchecked, so it stays on the list rather than being quietly dropped.
+      refundState.set(item.id, { refunded: 0, unknown: index >= MAX_REFUND_CHECKS });
+      missing.push(item);
+      continue;
+    }
+
+    try {
+      const intent = await stripe.paymentIntents.retrieve(item.paymentIntent, {
+        expand: ["latest_charge"],
+      });
+      const charge =
+        intent.latest_charge && typeof intent.latest_charge !== "string"
+          ? intent.latest_charge
+          : null;
+
+      // `amount_captured` rather than `amount`: a payment that was authorised
+      // but only partly captured was never fully taken in the first place.
+      const captured = charge?.amount_captured ?? 0;
+      const returned = charge?.amount_refunded ?? 0;
+
+      if (captured > 0 && returned >= captured) {
+        refundsIgnored += 1;
+        continue;
+      }
+
+      refundState.set(item.id, { refunded: toDollars(returned), unknown: false });
+      missing.push(item);
+    } catch {
+      refundState.set(item.id, { refunded: 0, unknown: true });
+      missing.push(item);
+    }
+  }
+
+  return { missing, refundsIgnored, refundState };
 }
 
 /**
