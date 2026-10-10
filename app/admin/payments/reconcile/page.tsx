@@ -112,8 +112,20 @@ export default async function ReconcilePage({
               <p>
                 Stripe took this money and nothing in the system recorded it. Each of these is
                 somebody who paid for a seat.
-                {refundNote}
               </p>
+              {/*
+                Deliberately a separate sentence, and explicitly "not listed
+                below". Run on from the line above it, the count reads as a
+                description of the very next row — so the page appears to say
+                that the payment it is shouting about was refunded.
+              */}
+              {refundsIgnored > 0 ? (
+                <p className="mt-2 text-sm">
+                  Separately, {refundsIgnored} fully refunded{" "}
+                  {refundsIgnored === 1 ? "payment is" : "payments are"} not listed below. That
+                  money went back to the payer, so there is nothing to record.
+                </p>
+              ) : null}
             </Panel>
 
             <ul className="mt-4 space-y-3">
