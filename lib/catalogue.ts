@@ -59,6 +59,25 @@ export async function getCatalogue(): Promise<CatalogueCourse[]> {
   });
 }
 
-/** The offering a visitor can act on, if there is one. */
+/**
+ * The offering worth putting on a catalogue card, if there is one.
+ *
+ * A course the institute has finished teaching has no current offering, even
+ * though the finished class is still sitting in `course.classes`. Its price,
+ * schedule and seat count all describe a term that is over, and showing them
+ * invites somebody to plan around details that will change before it runs
+ * again.
+ *
+ * THE STATUS LIST IS NOT OPTIONAL HERE, and this is the second time that has
+ * bitten. RLS already shows the public `open` and `in_progress` only, so
+ * falling back to `classes[0]` happened to do the right thing — for everybody
+ * except an admin, who can see every class and therefore saw a different
+ * catalogue from the one visitors saw. A page that reads differently depending
+ * on who is signed in is a page nobody can check.
+ */
+const BOOKABLE = ["open", "in_progress"] as const;
+
 export const openClassOf = (course: CatalogueCourse) =>
-  course.classes.find((c) => c.status === "open") ?? course.classes[0] ?? null;
+  course.classes.find((c) => c.status === "open") ??
+  course.classes.find((c) => (BOOKABLE as readonly string[]).includes(c.status)) ??
+  null;
