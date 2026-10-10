@@ -1180,6 +1180,23 @@ export type Database = {
         }
         Returns: string
       }
+      sessions_due_tomorrow: {
+        Args: never
+        Returns: {
+          class_id: string
+          course_code: string
+          course_title: string
+          email: string
+          first_name: string
+          location: string
+          meets_on: string
+          person_id: string
+          session_id: string
+          session_number: number
+          session_title: string
+          starts_at: string
+        }[]
+      }
       set_grade_categories: {
         Args: { p_categories: Json; p_class_id: string }
         Returns: undefined
