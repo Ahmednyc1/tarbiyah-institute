@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import { Wordmark } from "@/components/wordmark";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { LogOut, Menu, UserRound, X } from "lucide-react";
@@ -47,38 +47,10 @@ export function SiteHeader({
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:h-24">
         <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
-          {/* `logo-wordmark.png` is Mas_tarbiyah_logo.png trimmed of its
-              transparent padding and resampled up to 288x99, by
-              scripts/build-icons.mjs. The original is a 64x64 square holding a
-              mark that fills about a third of it, so rendering it as a square
-              spent most of the header on nothing.
-
-              288 IS DELIBERATE: twice the 144px this renders at on a wide
-              screen, so a retina display gets one device pixel per image
-              pixel. Shipping the 64px original instead means Next serves 64px
-              — its optimizer will not enlarge past a file's natural size — and
-              the browser stretches it 4.5x at draw time, which looks worse
-              than the same enlargement done once with a proper filter.
-
-              Sized by WIDTH with height auto: the aspect ratio now comes from
-              the artwork rather than from a box somebody chose. width/height
-              must stay equal to the file's real dimensions, since the browser
-              derives the rendered height from them.
-
-              Sized to sit level with the nav row rather than tower over it:
-              w-28 puts the wordmark at about the height of the Account button
-              beside it. w-36 was legible but dominated the header, and every
-              extra pixel is also softer, since all of this comes from a 64px
-              original. Past about w-40 the serifs visibly break down, and that
-              is the ceiling until somebody produces the real logo file. */}
-          <Image
-            src="/logo-wordmark.png"
-            alt="MAS Tarbiya Institute"
-            width={288}
-            height={99}
-            priority
-            className="h-auto w-20 sm:w-28"
-          />
+          {/* Type, not a picture of type — see components/wordmark.tsx for why
+              the 64px logo file could not carry a header at any useful size.
+              Sized here by font-size alone; the sprout and tracking follow. */}
+          <Wordmark className="text-[18px] sm:text-[25px]" />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
