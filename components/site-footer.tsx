@@ -31,6 +31,11 @@ export function SiteFooter() {
                 Student portal
               </Link>
             </li>
+            <li>
+              <Link href="/privacy" className="hover:text-primary-foreground">
+                Privacy
+              </Link>
+            </li>
           </ul>
         </div>
         <div>
