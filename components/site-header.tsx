@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Wordmark } from "@/components/wordmark";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { LogOut, Menu, UserRound, X } from "lucide-react";
@@ -47,10 +47,24 @@ export function SiteHeader({
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:h-24">
         <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
-          {/* Type, not a picture of type — see components/wordmark.tsx for why
-              the 64px logo file could not carry a header at any useful size.
-              Sized here by font-size alone; the sprout and tracking follow. */}
-          <Wordmark className="text-[18px] sm:text-[25px]" />
+          {/* The real artwork at last — 1774x887, arrived 8 Nov, replacing both
+              the 64px thumbnail and the typeset stand-in that stood in for it.
+              Generated onto the site cream by scripts/build-icons.mjs; see the
+              comment there for why it is recoloured rather than made
+              transparent.
+
+              Shipped at 320px wide, twice what the header renders, so a retina
+              screen gets one device pixel per image pixel. width/height below
+              are the file's real dimensions: the browser derives the rendered
+              height from them, and a mismatch stretches the mark. */}
+          <Image
+            src="/logo-wordmark.png"
+            alt="MAS Tarbiya Institute"
+            width={320}
+            height={130}
+            priority
+            className="h-auto w-[110px] sm:w-[150px]"
+          />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">

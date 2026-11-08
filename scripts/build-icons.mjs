@@ -77,55 +77,79 @@ function buildIco(pngs) {
 const render = (svg, size) => sharp(Buffer.from(svg)).resize(size, size).png().toBuffer();
 
 /**
- * The header wordmark, with its transparent padding cut off.
+ * The header logo: the real artwork, recomposited onto the site cream.
  *
- * `Mas_tarbiyah_logo.png` is a 64x64 square, but the artwork inside it only
- * occupies about 25 of those rows — the rest is empty. Rendered as a square in
- * the header, roughly 60% of the space the logo takes up is nothing at all,
- * which is why it reads as small and cramped no matter what size the box is.
+ * `new_updated_logo.jpg` arrived on 2026-11-08 and finally replaced the 64px
+ * thumbnail this project limped along on for two months. It is 1774x887, which
+ * is plenty — but it is a JPEG on a WHITE ground, and this site is cream
+ * (#f5f3ec). Dropped in untouched it is a white rectangle floating on a cream
+ * header.
  *
- * Trimming lets the header size the mark by its real width, so the wordmark
- * can be visibly larger without the source being enlarged any further than it
- * already is. It is derived here rather than cropped by hand so that dropping
- * in a better logo file and re-running this produces the right thing.
+ * TRUE TRANSPARENCY CANNOT BE RECOVERED FROM IT, and that is not a limitation
+ * of the code. A two-tone logo on white is mathematically ambiguous: the gold
+ * at full opacity and a dark ink at 60% opacity produce the identical pixel,
+ * and nothing in the file distinguishes them. Any "remove background" pass has
+ * to guess, and guesses show up as a halo round the gold.
+ *
+ * So instead of inventing an alpha channel, the ground is recoloured straight
+ * from white to cream, weighted by how light each pixel is: background goes all
+ * the way, ink is left alone, and edges blend continuously so there is no
+ * key-line. This is exact wherever the logo sits on cream, which is everywhere
+ * it is used. IF IT EVER NEEDS TO SIT ON ANOTHER COLOUR, ask the designer for a
+ * transparent PNG or an SVG rather than reaching for a background remover.
  */
-async function buildWordmark() {
-  const src = join(root, "public", "Mas_tarbiyah_logo.png");
+async function buildHeaderLogo() {
+  const src = join(root, "public", "new_updated_logo.jpg");
   const out = join(root, "public", "logo-wordmark.png");
+  const CREAM = [0xf5, 0xf3, 0xec];
+  const PAD = 14;
 
-  const trimmed = await sharp(src).trim().png().toBuffer();
-  const natural = await sharp(trimmed).metadata();
+  const { data, info } = await sharp(src).raw().toBuffer({ resolveWithObject: true });
+  const { width: W, height: H, channels: C } = info;
 
-  /**
-   * THE ENLARGEMENT HAPPENS HERE, NOT IN THE BROWSER, and that is the whole
-   * point of this step.
-   *
-   * Next's image optimizer refuses to enlarge a file beyond its natural size,
-   * so shipping the trimmed 64px original meant it served 64px into a 144px
-   * box and left the browser to stretch it — about 4.5x on a retina screen,
-   * with the browser's cheap filter. Resampling once here with Lanczos, at the
-   * size the header actually paints, is visibly better than the same
-   * enlargement done at draw time.
-   *
-   * 288 is twice the widest the header renders it (w-36 = 144px), so a retina
-   * display gets one device pixel per image pixel.
-   */
-  const TARGET_WIDTH = 288;
-  const height = Math.round((TARGET_WIDTH * natural.height) / natural.width);
-  writeFileSync(
-    out,
-    await sharp(trimmed).resize(TARGET_WIDTH, height, { kernel: "lanczos3" }).png().toBuffer(),
-  );
-  console.log(
-    `wrote public/logo-wordmark.png  ${TARGET_WIDTH}x${height}` +
-      `  (trimmed to ${natural.width}x${natural.height}, then resampled)`,
-  );
+  const ground = Buffer.alloc(W * H * 3);
+  for (let i = 0; i < W * H; i++) {
+    const r = data[i*C], g = data[i*C+1], b = data[i*C+2];
+    // 1 = pure background, 0 = solid ink.
+    const w = (0.299*r + 0.587*g + 0.114*b) / 255;
+    const out = [
+      Math.round(r + (CREAM[0] - 255) * w),
+      Math.round(g + (CREAM[1] - 255) * w),
+      Math.round(b + (CREAM[2] - 255) * w),
+    ];
+    // JPEG noise leaves the ground a value or two off cream, which shows as a
+    // faint rectangle round the logo on a cream page. Anything already within
+    // a hair of cream is snapped exactly onto it; real ink is nowhere near
+    // this threshold, so nothing visible is touched.
+    const offByAHair = out.every((v, k) => Math.abs(v - CREAM[k]) <= 4);
+    ground[i*3]   = offByAHair ? CREAM[0] : out[0];
+    ground[i*3+1] = offByAHair ? CREAM[1] : out[1];
+    ground[i*3+2] = offByAHair ? CREAM[2] : out[2];
+  }
+
+  // Measured ink box of this file. Re-measure if the artwork is ever replaced.
+  const ART = { left: 152, top: 137, width: 1462, height: 577 };
+  const trimmed = await sharp(ground, { raw: { width: W, height: H, channels: 3 } })
+    .extract({
+      left: ART.left - PAD, top: ART.top - PAD,
+      width: ART.width + PAD * 2, height: ART.height + PAD * 2,
+    })
+    .png().toBuffer();
+
+  // Twice the widest the header renders it, so retina gets one device pixel
+  // per image pixel and the browser never has to stretch it.
+  const TARGET_WIDTH = 320;
+  const meta = await sharp(trimmed).metadata();
+  const height = Math.round((TARGET_WIDTH * meta.height) / meta.width);
+  writeFileSync(out, await sharp(trimmed)
+    .resize(TARGET_WIDTH, height, { kernel: "lanczos3" }).png().toBuffer());
+  console.log(`wrote public/logo-wordmark.png  ${TARGET_WIDTH}x${height}  (from ${W}x${H})`);
   return { width: TARGET_WIDTH, height };
 }
 
 mkdirSync(app, { recursive: true });
 
-await buildWordmark();
+const headerLogo = await buildHeaderLogo();
 
 writeFileSync(join(app, "icon.svg"), icon);
 
