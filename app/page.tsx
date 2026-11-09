@@ -54,11 +54,14 @@ export default async function Home() {
           </div>
           <div className="relative">
             <div className="absolute -inset-3 -z-10 rounded-lg border border-gold/40" />
+            {/* width/height must be the file's own 2048x1344. Next derives the
+                aspect ratio from them, so leaving the previous image's
+                1600x1008 behind would quietly squash this one. */}
             <Image
-              src="/hero-institute.jpg"
-              alt="Sunlit classroom at MAS Tarbiya Institute with open Qur'an and Arabic calligraphy"
-              width={1600}
-              height={1008}
+              src="/hero-institute1.jpeg"
+              alt="A stack of Qur'anic and fiqh texts beside an open notebook, on a table in a sunlit classroom"
+              width={2048}
+              height={1344}
               priority
               className="rounded-lg object-cover shadow-lift"
             />
