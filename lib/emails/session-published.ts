@@ -39,6 +39,25 @@ function esc(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/**
+ * Is there anything here worth telling a class about?
+ *
+ * Publishing a session and attaching material to it are two different acts
+ * that happen to touch the same row. The first is how a teacher lays out a
+ * syllabus — six dated, empty sessions before term starts. The second is what
+ * a student actually wants to hear about. Only the second is news.
+ *
+ * Callers check this before building a message. `sessionPublished` throws if
+ * they forget, because a wrong announcement to a whole class is worse than a
+ * caught error in a log.
+ */
+export function canAnnounceSession(session: {
+  recording_url?: string | null;
+  slides_path?: string | null;
+}): boolean {
+  return Boolean(session.recording_url) || Boolean(session.slides_path);
+}
+
 export function sessionPublished(ctx: SessionEmailContext): {
   subject: string;
   html: string;
@@ -48,8 +67,22 @@ export function sessionPublished(ctx: SessionEmailContext): {
   const heading = ctx.title?.trim() || `Session ${ctx.sessionNumber}`;
 
   // What is actually available decides what the message promises. Telling
-  // somebody a recording is up when only the notes are would send thirty
+  // somebody a recording is up when only the slides are would send thirty
   // people to the portal to find nothing.
+  //
+  // THERE IS NO FOURTH BRANCH, AND THAT IS THE POINT. This used to fall
+  // through to "The notes are up", which was wrong twice over: `class_sessions`
+  // has no notes column for it to be describing — only title, summary,
+  // recording_url and slides_path — and the branch was reached whenever a
+  // session had neither a recording nor slides, which is the normal state of
+  // every session in a syllabus laid out before term starts. Publishing six
+  // dated but empty sessions would have told the class six times that notes
+  // were up, and sent them to a page with nothing on it.
+  //
+  // A recording and slides are the only things a student opens the portal to
+  // collect. A title and a summary are context and belong in the body. When
+  // neither attachment is present there is nothing to announce, so this
+  // returns null and `canAnnounce` below turns that into silence.
   const what =
     ctx.hasRecording && ctx.hasSlides
       ? "The recording and slides are up"
@@ -57,7 +90,14 @@ export function sessionPublished(ctx: SessionEmailContext): {
         ? "The recording is up"
         : ctx.hasSlides
           ? "The slides are up"
-          : "The notes are up";
+          : null;
+
+  if (what === null) {
+    throw new Error(
+      "sessionPublished called for a session with nothing to announce — " +
+        "guard with canAnnounceSession first",
+    );
+  }
 
   const subject = `${what.replace(/^The /, "")} — ${ctx.courseTitle}, session ${ctx.sessionNumber}`;
 

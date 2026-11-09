@@ -1,7 +1,7 @@
 import "server-only";
 import { alreadySent, sendEmail, sentPersonIds } from "@/lib/email";
 import { gradesPublished } from "@/lib/emails/grades-published";
-import { sessionPublished } from "@/lib/emails/session-published";
+import { canAnnounceSession, sessionPublished } from "@/lib/emails/session-published";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -60,6 +60,18 @@ export async function notifyClassSessionPublished(
       console.error(`[notify] no session or course for ${sessionId}`);
       return 0;
     }
+
+    // Publishing a session and putting material on it are different acts that
+    // touch the same row. Laying out a syllabus — six dated, empty sessions
+    // before term starts — publishes every one of them, and none of that is
+    // news to a student. Only a recording or slides is.
+    if (!canAnnounceSession(session)) {
+      console.info(
+        `[notify] session ${sessionId} published with no recording or slides; nothing to announce`,
+      );
+      return 0;
+    }
+
     if (!roster?.length) return 0;
 
     let sent = 0;
