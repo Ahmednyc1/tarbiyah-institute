@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { CONTACT_EMAIL } from "@/lib/institute";
 
-const CONTACT_EMAIL = "admissions@mastarbiya.org";
 
 export function SiteFooter() {
   return (

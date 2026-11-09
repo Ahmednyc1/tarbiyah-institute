@@ -11,6 +11,7 @@ import { formatFee } from "@/lib/format";
 import { isChargeable, stripeIsConfigured } from "@/lib/stripe";
 import { teacherPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
+import { CONTACT_EMAIL } from "@/lib/institute";
 
 /**
  * Per-class link previews.
@@ -77,7 +78,6 @@ export async function generateMetadata({
 // The desk stays a real option even with card payment working: not everybody
 // carries a card, and zakat or sadaqah support cannot be a button — it is a
 // conversation.
-const CONTACT_EMAIL = "admissions@mastarbiya.org";
 
 export default async function RegisterPage({
   params,

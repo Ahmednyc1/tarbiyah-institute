@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CONTACT_EMAIL } from "@/lib/institute";
+
 export const metadata: Metadata = {
   title: "Privacy",
   description:
@@ -189,8 +191,8 @@ const sections: Section[] = [
 
 function ContactLink() {
   return (
-    <a href="mailto:admissions@mastarbiya.org" className="text-primary hover:underline">
-      admissions@mastarbiya.org
+    <a href={`mailto:${CONTACT_EMAIL}`} className="text-primary hover:underline">
+      {CONTACT_EMAIL}
     </a>
   );
 }

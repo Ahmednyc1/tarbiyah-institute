@@ -1,6 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { CONTACT_EMAIL, FROM_EMAIL } from "@/lib/institute";
 
 /**
  * Every email the institute sends goes through here.
@@ -35,8 +36,10 @@ export type EmailKind =
  * Both are overridable by environment so a preview deployment can be pointed
  * somewhere harmless without editing code.
  */
-const FROM = process.env.EMAIL_FROM ?? "MAS Tarbiya Institute <institute@send.masnewyork.org>";
-const REPLY_TO = process.env.EMAIL_REPLY_TO ?? "bk.institute@masnewyork.org";
+const FROM = process.env.EMAIL_FROM ?? FROM_EMAIL;
+// Replies land in the same inbox as enquiries from the website. They used
+// to go somewhere else entirely, which nobody chose.
+const REPLY_TO = process.env.EMAIL_REPLY_TO ?? CONTACT_EMAIL;
 
 /** Whether email is set up at all. Cheap, and safe to call anywhere. */
 export function emailIsConfigured(): boolean {
