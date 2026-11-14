@@ -226,21 +226,21 @@ begin
 
     insert into public.student_grades (class_id, enrollment_id, assignment_id, score, graded_by, graded_at, feedback)
     values (v_class, v_enroll_ids[i], v_hw1,
-            (array[19, 17, 15, 12, 18])[i], v_teacher, now() - interval '20 days',
+            (array[19, 17, 15, 12, 18])[i], v_teacher_person, now() - interval '20 days',
             (array['Excellent work.', 'Good, watch your references.',
                    'Solid effort.', 'Please see me after class.', 'Very strong.'])[i]);
 
     insert into public.student_grades (class_id, enrollment_id, assignment_id, score, graded_by, graded_at)
     values (v_class, v_enroll_ids[i], v_hw2,
-            (array[20, 16, 14, 9, 17])[i], v_teacher, now() - interval '10 days');
+            (array[20, 16, 14, 9, 17])[i], v_teacher_person, now() - interval '10 days');
 
     insert into public.student_grades (class_id, enrollment_id, assignment_id, score, graded_by, graded_at)
     values (v_class, v_enroll_ids[i], v_quiz1,
-            (array[24, 21, 18, 13, 22])[i], v_teacher, now() - interval '14 days');
+            (array[24, 21, 18, 13, 22])[i], v_teacher_person, now() - interval '14 days');
 
     insert into public.student_grades (class_id, enrollment_id, assignment_id, score, graded_by, graded_at)
     values (v_class, v_enroll_ids[i], v_mid,
-            (array[47, 41, 35, 24, 44])[i], v_teacher, now() - interval '3 days');
+            (array[47, 41, 35, 24, 44])[i], v_teacher_person, now() - interval '3 days');
 
     -- Final exam row exists but is ungraded (score IS NULL).
     insert into public.student_grades (class_id, enrollment_id, assignment_id, score)
@@ -250,17 +250,24 @@ begin
   -- =========================================================================
   -- ATTENDANCE — five Sundays
   -- =========================================================================
+  -- Attendance hangs off sessions, not typed dates.
+  insert into public.class_sessions (class_id, session_number, meets_on, is_published)
+  select v_class, n, d, true
+    from unnest(array['2026-09-13','2026-09-20','2026-09-27','2026-10-04','2026-10-11']::date[])
+         with ordinality as t(d, n);
+
   for i in 1 .. array_length(v_enroll_ids, 1) loop
-    insert into public.attendance (enrollment_id, class_date, status, recorded_by)
-    values
-      (v_enroll_ids[i], '2026-09-13', 'present', v_teacher),
-      (v_enroll_ids[i], '2026-09-20',
-        case when i = 4 then 'absent' else 'present' end, v_teacher),
-      (v_enroll_ids[i], '2026-09-27',
-        case when i = 3 then 'late' else 'present' end, v_teacher),
-      (v_enroll_ids[i], '2026-10-04',
-        case when i = 4 then 'excused' else 'present' end, v_teacher),
-      (v_enroll_ids[i], '2026-10-11', 'present', v_teacher);
+    insert into public.attendance (enrollment_id, class_id, session_id, status, recorded_by)
+    select v_enroll_ids[i], v_class, cs.id,
+           case
+             when cs.session_number = 2 and i = 4 then 'absent'
+             when cs.session_number = 3 and i = 3 then 'late'
+             when cs.session_number = 4 and i = 4 then 'excused'
+             else 'present'
+           end,
+           v_teacher_person
+      from public.class_sessions cs
+     where cs.class_id = v_class;
   end loop;
 
   -- =========================================================================

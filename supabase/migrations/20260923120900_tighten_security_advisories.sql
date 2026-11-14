@@ -27,7 +27,13 @@ alter view public.my_roles set (security_invoker = on);
 -- reason for anon or authenticated to hold EXECUTE on it. Event triggers fire as
 -- their owner, so revoking this does not stop it working.
 
-revoke execute on function public.rls_auto_enable() from anon, authenticated, public;
+do $$
+begin
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    revoke execute on function public.rls_auto_enable() from anon, authenticated, public;
+  end if;
+end;
+$$;
 
 
 -- ---------------------------------------------------------------------------
