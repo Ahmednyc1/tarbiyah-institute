@@ -172,6 +172,10 @@ export function SessionCard({ classId, session }: { classId: string; session: Se
               rows={3}
               className={inputClass.replace("h-9", "min-h-20 py-2")}
             />
+            <p className="text-xs text-muted-foreground">
+              Links become clickable for students. To show a name instead of the address, write{" "}
+              <code className="rounded bg-secondary px-1 py-0.5">[Session notes](https://…)</code>
+            </p>
           </Labelled>
 
           <div className="flex flex-wrap gap-6">
