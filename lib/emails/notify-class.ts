@@ -1,7 +1,11 @@
 import "server-only";
-import { alreadySent, sendEmail, sentPersonIds } from "@/lib/email";
+import { sendEmail, sentPersonIds } from "@/lib/email";
 import { gradesPublished } from "@/lib/emails/grades-published";
-import { canAnnounceSession, sessionPublished } from "@/lib/emails/session-published";
+import {
+  anythingNew,
+  sessionPublished,
+  type SessionNews,
+} from "@/lib/emails/session-published";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -21,20 +25,24 @@ import { createClient } from "@/lib/supabase/server";
  */
 
 /**
- * "Session 3 is up", once per session, ever.
+ * "The notes are up" / "The recording is up", for what a save just added.
+ *
+ * The caller works out what is new (see `sessionNews`); this only writes to
+ * the class about it. There is no longer a once-per-session lock: notes on
+ * Sunday and the recording on Tuesday are two pieces of news, and each gets
+ * its own email. What stops repeats is that `sessionNews` only reports
+ * material that was absent before the save.
  *
  * Returns how many students were written to. Zero is an ordinary outcome: the
- * class may be empty, already notified, or nobody on it may have an address.
+ * class may be empty, or nobody on it may have an address.
  */
 export async function notifyClassSessionPublished(
   classId: string,
   sessionId: string,
+  news: SessionNews,
 ): Promise<number> {
   try {
-    // Asked before anything is built, because the common case is "already
-    // sent" — a teacher re-saving a published session — and that should cost
-    // one indexed lookup.
-    if (await alreadySent("session_published", sessionId)) return 0;
+    if (!anythingNew(news)) return 0;
 
     const supabase = await createClient();
 
@@ -61,17 +69,6 @@ export async function notifyClassSessionPublished(
       return 0;
     }
 
-    // Publishing a session and putting material on it are different acts that
-    // touch the same row. Laying out a syllabus — six dated, empty sessions
-    // before term starts — publishes every one of them, and none of that is
-    // news to a student. Only a recording or slides is.
-    if (!canAnnounceSession(session)) {
-      console.info(
-        `[notify] session ${sessionId} published with no recording or slides; nothing to announce`,
-      );
-      return 0;
-    }
-
     if (!roster?.length) return 0;
 
     let sent = 0;
@@ -84,8 +81,7 @@ export async function notifyClassSessionPublished(
         meetsOn: session.meets_on,
         title: session.title,
         summary: session.summary,
-        hasRecording: Boolean(session.recording_url),
-        hasSlides: Boolean(session.slides_path),
+        news,
         classId,
       });
 
@@ -97,13 +93,13 @@ export async function notifyClassSessionPublished(
         text,
         personId: student.person_id,
         classId,
-        // The session, so `alreadySent` can refuse a second announcement of it
-        // however long afterwards the teacher re-saves.
+        // The session, so the log shows what each email was about, and so a
+        // republished session can tell it was announced before.
         contextId: sessionId,
-        // Belt and braces inside the 24 hours Resend honours it: two rapid
-        // saves could otherwise both pass the alreadySent check before either
-        // had written its row.
-        idempotencyKey: `session:${sessionId}:${student.person_id}`,
+        // Per kind of news: a double-clicked Save cannot send the same
+        // announcement twice inside Resend's 24 hours, but the recording
+        // arriving after the notes is a different key and still goes out.
+        idempotencyKey: `session:${sessionId}:${newsKey(news)}:${student.person_id}`,
       });
 
       if (ok) sent += 1;
@@ -115,6 +111,11 @@ export async function notifyClassSessionPublished(
     console.error(`[notify] session ${sessionId} failed`, cause);
     return 0;
   }
+}
+
+/** "recording+notes" — which announcement this is, for the idempotency key. */
+function newsKey(news: SessionNews): string {
+  return (["recording", "slides", "notes"] as const).filter((k) => news[k]).join("+");
 }
 
 /**

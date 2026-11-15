@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { alreadySent } from "@/lib/email";
 import { notifyClassSessionPublished } from "@/lib/emails/notify-class";
+import { anythingNew, sessionNews } from "@/lib/emails/session-published";
 import { NOT_ALLOWED, denied, graderViewer } from "@/lib/guard";
 import { createClient } from "@/lib/supabase/server";
 
@@ -63,28 +65,27 @@ export async function saveSession(_prev: SessionState, formData: FormData): Prom
 
   const publishing = formData.get("isPublished") === "on";
 
-  // What it was before, so the crossing can be told from an ordinary save.
-  // A teacher saves repeatedly — fixing a typo, correcting a date — and only
-  // unpublished-to-published should reach thirty inboxes.
+  // What it was before, so news can be told from an ordinary save. A teacher
+  // saves repeatedly — fixing a typo, correcting a date, replacing a link —
+  // and only material that was not there before should reach thirty inboxes.
   const supabase = await createClient();
   const { data: before } = await supabase
     .from("class_sessions")
-    .select("is_published")
+    .select("is_published, is_cancelled, recording_url, slides_path, summary")
     .eq("id", sessionId)
     .maybeSingle();
 
-  const { error } = await supabase
-    .from("class_sessions")
-    .update({
-      meets_on: meetsOn,
-      starts_at: String(formData.get("startsAt") ?? "") || null,
-      title: String(formData.get("title") ?? "").trim() || null,
-      summary: String(formData.get("summary") ?? "").trim() || null,
-      recording_url: recording || null,
-      is_cancelled: formData.get("isCancelled") === "on",
-      is_published: publishing,
-    })
-    .eq("id", sessionId);
+  const after = {
+    meets_on: meetsOn,
+    starts_at: String(formData.get("startsAt") ?? "") || null,
+    title: String(formData.get("title") ?? "").trim() || null,
+    summary: String(formData.get("summary") ?? "").trim() || null,
+    recording_url: recording || null,
+    is_cancelled: formData.get("isCancelled") === "on",
+    is_published: publishing,
+  };
+
+  const { error } = await supabase.from("class_sessions").update(after).eq("id", sessionId);
 
   if (error) return { error: error.message };
 
@@ -92,10 +93,27 @@ export async function saveSession(_prev: SessionState, formData: FormData): Prom
 
   // After the save, and unable to undo it. notifyClassSessionPublished never
   // throws; a mail problem must not make a teacher think their edit was lost.
-  // A cancelled session is not announced — nobody wants "the recording is up"
-  // for a class that did not run.
-  if (publishing && !before?.is_published && formData.get("isCancelled") !== "on") {
-    const sent = await notifyClassSessionPublished(classId, sessionId);
+  //
+  // Becoming visible in this save (published, or un-cancelled) makes
+  // everything on the session count as new — unless the class was already
+  // told about this session once, in which case only material that was not
+  // there before counts. The lookup is only made on that crossing, so an
+  // ordinary save costs nothing extra.
+  const becomingVisible =
+    publishing && !after.is_cancelled && !(before?.is_published && !before?.is_cancelled);
+  const announcedBefore = becomingVisible
+    ? await alreadySent("session_published", sessionId)
+    : false;
+
+  // Slides are not edited on this form, so they carry over unchanged.
+  const news = sessionNews(
+    before,
+    { ...after, slides_path: before?.slides_path ?? null },
+    announcedBefore,
+  );
+
+  if (anythingNew(news)) {
+    const sent = await notifyClassSessionPublished(classId, sessionId, news);
     if (sent > 0) return { ok: `Saved. ${sent} student${sent === 1 ? "" : "s"} notified.` };
   }
 

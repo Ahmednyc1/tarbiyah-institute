@@ -1,7 +1,9 @@
 import "server-only";
+import { hasLink, splitLinks } from "@/lib/links";
 
 /**
- * "Session 3 is up" — sent once, the first time a session is published.
+ * "The notes are up" / "The recording is up" — sent when a published session
+ * gains something a student would open the portal to collect.
  *
  * Same constraints as every template here: tables, inline styles, nothing
  * external, and a real plain-text alternative. See enrollment-confirmed.ts for
@@ -16,9 +18,22 @@ export type SessionEmailContext = {
   meetsOn: string;
   title: string | null;
   summary: string | null;
-  hasRecording: boolean;
-  hasSlides: boolean;
+  /** What is NEW in this save — not everything the session has. */
+  news: SessionNews;
   classId: string;
+};
+
+/** The material a save added. Each is true only when it was absent before. */
+export type SessionNews = { recording: boolean; slides: boolean; notes: boolean };
+
+export const NOTHING_NEW: SessionNews = { recording: false, slides: false, notes: false };
+
+type SessionMaterial = {
+  is_published?: boolean | null;
+  is_cancelled?: boolean | null;
+  recording_url?: string | null;
+  slides_path?: string | null;
+  summary?: string | null;
 };
 
 const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
@@ -40,22 +55,83 @@ function esc(value: string): string {
 }
 
 /**
- * Is there anything here worth telling a class about?
+ * What this save added that a student would want to hear about.
  *
- * Publishing a session and attaching material to it are two different acts
- * that happen to touch the same row. The first is how a teacher lays out a
- * syllabus — six dated, empty sessions before term starts. The second is what
- * a student actually wants to hear about. Only the second is news.
+ * Compared against the session as it was before the save, so only the
+ * crossing from "absent" to "present" is news:
  *
- * Callers check this before building a message. `sessionPublished` throws if
- * they forget, because a wrong announcement to a whole class is worse than a
- * caught error in a log.
+ *   - a recording link where there was none
+ *   - slides where there were none
+ *   - a summary that now contains a link (the notes) where it had none
+ *
+ * Changing a link that was already there is NOT news. Students already know
+ * where to look, and an email for every corrected typo would teach them to
+ * ignore the institute's mail.
+ *
+ * A session nobody can see announces nothing: unpublished and cancelled
+ * sessions return NOTHING_NEW. When a session is published — or un-cancelled —
+ * in this save, everything on it counts as new, because no student has seen
+ * any of it. `announcedBefore` is the exception: a session that was published,
+ * announced, hidden and published again should not tell the class twice about
+ * material they were already told about.
+ *
+ * A title and a summary with no link are context, not material. Laying out a
+ * syllabus — six dated, empty sessions before term — announces nothing.
  */
-export function canAnnounceSession(session: {
-  recording_url?: string | null;
-  slides_path?: string | null;
-}): boolean {
-  return Boolean(session.recording_url) || Boolean(session.slides_path);
+export function sessionNews(
+  before: SessionMaterial | null,
+  after: SessionMaterial,
+  announcedBefore = false,
+): SessionNews {
+  const visible = (s: SessionMaterial | null) => Boolean(s?.is_published) && !s?.is_cancelled;
+
+  if (!visible(after)) return NOTHING_NEW;
+
+  const previous: SessionMaterial | null = visible(before) || announcedBefore ? before : null;
+
+  return {
+    recording: Boolean(after.recording_url) && !previous?.recording_url,
+    slides: Boolean(after.slides_path) && !previous?.slides_path,
+    notes: hasLink(after.summary) && !hasLink(previous?.summary),
+  };
+}
+
+export function anythingNew(news: SessionNews): boolean {
+  return news.recording || news.slides || news.notes;
+}
+
+/** "The recording", "The recording and notes", "The recording, slides and notes". */
+function describe(news: SessionNews): string | null {
+  const items = [
+    news.recording && "recording",
+    news.slides && "slides",
+    news.notes && "notes",
+  ].filter(Boolean) as string[];
+
+  if (items.length === 0) return null;
+  const list =
+    items.length === 1 ? items[0] : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+  // "The slides are up", "The recording is up" — plural when it is a list or slides/notes.
+  const plural = items.length > 1 || items[0] !== "recording";
+  return `The ${list} ${plural ? "are" : "is"} up`;
+}
+
+/** The summary for the email body, with its links drawn as links. */
+function summaryAsHtml(summary: string): string {
+  return splitLinks(summary)
+    .map((p) =>
+      p.kind === "text"
+        ? esc(p.text)
+        : `<a href="${esc(p.href)}" style="color:#1d4a33;text-decoration:underline;">${esc(p.label)}</a>`,
+    )
+    .join("");
+}
+
+/** The summary for the plain-text email: a named link becomes "Name: address". */
+function summaryAsText(summary: string): string {
+  return splitLinks(summary)
+    .map((p) => (p.kind === "text" ? p.text : p.named ? `${p.label}: ${p.href}` : p.href))
+    .join("");
 }
 
 export function sessionPublished(ctx: SessionEmailContext): {
@@ -66,43 +142,23 @@ export function sessionPublished(ctx: SessionEmailContext): {
   const firstName = ctx.firstName.trim() || "there";
   const heading = ctx.title?.trim() || `Session ${ctx.sessionNumber}`;
 
-  // What is actually available decides what the message promises. Telling
-  // somebody a recording is up when only the slides are would send thirty
-  // people to the portal to find nothing.
-  //
-  // THERE IS NO FOURTH BRANCH, AND THAT IS THE POINT. This used to fall
-  // through to "The notes are up", which was wrong twice over: `class_sessions`
-  // has no notes column for it to be describing — only title, summary,
-  // recording_url and slides_path — and the branch was reached whenever a
-  // session had neither a recording nor slides, which is the normal state of
-  // every session in a syllabus laid out before term starts. Publishing six
-  // dated but empty sessions would have told the class six times that notes
-  // were up, and sent them to a page with nothing on it.
-  //
-  // A recording and slides are the only things a student opens the portal to
-  // collect. A title and a summary are context and belong in the body. When
-  // neither attachment is present there is nothing to announce, so this
-  // returns null and `canAnnounce` below turns that into silence.
-  const what =
-    ctx.hasRecording && ctx.hasSlides
-      ? "The recording and slides are up"
-      : ctx.hasRecording
-        ? "The recording is up"
-        : ctx.hasSlides
-          ? "The slides are up"
-          : null;
+  // What is NEW decides what the message promises. Telling somebody a
+  // recording is up when only the notes are would send thirty people to the
+  // portal to find nothing.
+  const what = describe(ctx.news);
 
   if (what === null) {
     throw new Error(
-      "sessionPublished called for a session with nothing to announce — " +
-        "guard with canAnnounceSession first",
+      "sessionPublished called with nothing new to announce — guard with anythingNew first",
     );
   }
 
-  const subject = `${what.replace(/^The /, "")} — ${ctx.courseTitle}, session ${ctx.sessionNumber}`;
+  // "Recording is up — …", capitalised: the subject drops the leading "The".
+  const short = what.replace(/^The /, "");
+  const subject = `${short[0].toUpperCase()}${short.slice(1)} — ${ctx.courseTitle}, session ${ctx.sessionNumber}`;
 
   const summaryHtml = ctx.summary?.trim()
-    ? `<p style="margin:0 0 18px 0;color:#5b635b;font-size:14px;line-height:1.6;">${esc(ctx.summary.trim())}</p>`
+    ? `<p style="margin:0 0 18px 0;color:#5b635b;font-size:14px;line-height:1.6;">${summaryAsHtml(ctx.summary.trim())}</p>`
     : "";
 
   const html = `
@@ -150,7 +206,7 @@ export function sessionPublished(ctx: SessionEmailContext): {
     `${ctx.courseCode} · ${ctx.courseTitle}`,
     `Session ${ctx.sessionNumber} — ${heading}`,
     `${spokenDate(ctx.meetsOn)}`,
-    ...(ctx.summary?.trim() ? [``, ctx.summary.trim()] : []),
+    ...(ctx.summary?.trim() ? [``, summaryAsText(ctx.summary.trim())] : []),
     ``,
     `${SITE}/portal`,
     ``,
