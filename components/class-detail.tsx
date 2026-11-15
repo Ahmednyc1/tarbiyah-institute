@@ -1,5 +1,6 @@
 import { PlayCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { LinkedText } from "@/components/linked-text";
 import { formatFee } from "@/lib/format";
 import type { EnrollmentDetail } from "@/lib/student-detail";
 import { cn } from "@/lib/utils";
@@ -274,7 +275,7 @@ export function ClassDetail({
                 </div>
                 {item.summary ? (
                   <p className="mt-3 border-t border-border/60 pt-3 text-sm leading-relaxed text-foreground/75">
-                    {item.summary}
+                    <LinkedText text={item.summary} />
                   </p>
                 ) : null}
               </li>
