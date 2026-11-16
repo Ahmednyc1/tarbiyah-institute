@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 export function FullNameForm({
   firstName,
   lastName,
-  intro = "It's printed on your certificate, so please write it as you'd like it to appear.",
+  intro = "It’s printed on your certificate, so please write it as you’d like it to appear.",
 }: {
   firstName: string;
   lastName: string;
