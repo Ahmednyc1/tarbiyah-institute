@@ -46,6 +46,39 @@ export function emailIsConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
 }
 
+/**
+ * Staying under Resend's rate limit.
+ *
+ * Resend refuses more than 10 requests a second, and a class is sent to one
+ * student at a time as fast as the loop runs. On 14 Nov that cost ten students
+ * their class reminder, and on 15 Nov three missed "the notes are up" — each
+ * logged as `rate_limit_exceeded`.
+ *
+ * Two layers. Sends from this server instance are spaced at least
+ * SEND_GAP_MS apart, which keeps one class roster comfortably under the limit
+ * on its own. And when Resend says "too many" anyway — two rosters at once,
+ * the cron and a teacher together, another instance — the send waits and
+ * tries again rather than giving up on that student.
+ *
+ * A quota refusal (daily or monthly) is NOT retried: waiting a second does
+ * not help, and the log should say plainly what happened.
+ */
+const SEND_GAP_MS = 150; // ≈ 6–7 a second, under the 10/s limit with room to spare
+const RATE_LIMIT_RETRIES = 3;
+const RATE_LIMIT_WAIT_MS = 1100;
+
+let nextSendAt = 0;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Wait for this instance's next free slot, and claim it. */
+async function takeSendSlot() {
+  const now = Date.now();
+  const at = Math.max(now, nextSendAt);
+  nextSendAt = at + SEND_GAP_MS;
+  if (at > now) await sleep(at - now);
+}
+
 export type SendEmailInput = {
   kind: EmailKind;
   /** The recipient. A person with no address on file is a no-op, not an error. */
@@ -95,23 +128,40 @@ export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; i
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    // Resend returns errors in the result rather than throwing them; the
-    // try/catch is for the layer below that — a network failure, a timeout.
-    const { data, error } = await resend.emails.send(
-      {
-        from: FROM,
-        to,
-        replyTo: REPLY_TO,
-        subject,
-        html,
-        ...(text ? { text } : {}),
-        ...(scheduledAt ? { scheduledAt } : {}),
-      },
-      idempotencyKey ? { idempotencyKey } : undefined,
-    );
 
-    if (error) failure = `${error.name}: ${error.message}`;
-    else providerId = data?.id;
+    for (let attempt = 0; ; attempt++) {
+      await takeSendSlot();
+
+      // Resend returns errors in the result rather than throwing them; the
+      // try/catch is for the layer below that — a network failure, a timeout.
+      const { data, error } = await resend.emails.send(
+        {
+          from: FROM,
+          to,
+          replyTo: REPLY_TO,
+          subject,
+          html,
+          ...(text ? { text } : {}),
+          ...(scheduledAt ? { scheduledAt } : {}),
+        },
+        // The same key on every attempt, so a retry of a send that actually
+        // went through is refused by Resend rather than delivered twice.
+        idempotencyKey ? { idempotencyKey } : undefined,
+      );
+
+      if (!error) {
+        providerId = data?.id;
+        failure = undefined;
+        break;
+      }
+
+      failure = `${error.name}: ${error.message}`;
+      if (error.name !== "rate_limit_exceeded" || attempt >= RATE_LIMIT_RETRIES) break;
+
+      // Push this instance's whole queue back, not just this send: if Resend
+      // is refusing, the next student in the loop would be refused too.
+      nextSendAt = Math.max(nextSendAt, Date.now() + RATE_LIMIT_WAIT_MS);
+    }
   } catch (cause) {
     failure = cause instanceof Error ? cause.message : String(cause);
   }
