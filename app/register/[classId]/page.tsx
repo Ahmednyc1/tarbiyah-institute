@@ -12,6 +12,7 @@ import { isChargeable, stripeIsConfigured } from "@/lib/stripe";
 import { teacherPhotoUrl } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { CONTACT_EMAIL } from "@/lib/institute";
+import { FullNameForm } from "@/components/full-name-form";
 
 /**
  * Per-class link previews.
@@ -275,7 +276,16 @@ export default async function RegisterPage({
                 marks and attendance then appear in your portal automatically.
               </p>
 
-              {viewer ? (
+              {viewer?.personId && viewer.needsFullName ? (
+                // Before money changes hands, so no new "Pending" ever reaches
+                // the roster or a certificate. The checkout button appears as
+                // soon as this saves.
+                <FullNameForm
+                  firstName={viewer.firstName}
+                  lastName={viewer.lastName}
+                  intro="Before you pay — it goes on your registration and is printed on your certificate."
+                />
+              ) : viewer ? (
                 <CheckoutButton classId={classId} fee={formatFee(Number(cls.registration_fee))} />
               ) : (
                 <>

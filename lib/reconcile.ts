@@ -1,6 +1,7 @@
 import "server-only";
 import { stripeClient, stripeIsConfigured, toDollars } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
+import { fullName } from "@/lib/names";
 
 /**
  * Money Stripe took that this database never recorded.
@@ -235,7 +236,7 @@ export async function reconcilePayments(days = DEFAULT_DAYS): Promise<Reconcilia
       .select("id, title, first_name, last_name")
       .in("id", personIds);
     for (const p of people ?? []) {
-      names.set(p.id, [p.title, p.first_name, p.last_name].filter(Boolean).join(" "));
+      names.set(p.id, fullName(p));
     }
   }
 
@@ -357,9 +358,7 @@ async function unpaidEnrollments(
     .map((e) => ({
       enrollmentId: e.id,
       studentName:
-        [e.students?.people?.title, e.students?.people?.first_name, e.students?.people?.last_name]
-          .filter(Boolean)
-          .join(" ") || "Unknown",
+        fullName(e.students?.people) || "Unknown",
       studentNumber: e.students?.student_number ?? "",
       className: e.classes?.courses?.title ?? "Unknown course",
       owed: Math.max(0, Number(e.amount_due) - Number(e.amount_paid)),

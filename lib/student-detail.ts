@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fullName } from "@/lib/names";
 
 export type DetailAssignment = {
   id: string;
@@ -176,7 +177,7 @@ export async function getEnrollmentDetail(
           feedback: g.feedback as string | null,
           markedAt: g.graded_at as string | null,
           markedBy: marker
-            ? [marker.title, marker.first_name, marker.last_name].filter(Boolean).join(" ")
+            ? fullName(marker)
             : null,
         },
       ];
@@ -229,7 +230,7 @@ export async function getEnrollmentDetail(
     classId,
     studentId: enrollment.student_id,
     studentName: person
-      ? [person.title, person.first_name, person.last_name].filter(Boolean).join(" ")
+      ? fullName(person)
       : "Unknown",
     studentNumber: enrollment.students?.student_number ?? "",
     courseTitle: cls.courses?.title ?? "",

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GradebookGrid, type CategoryGroup, type StudentRow } from "@/components/gradebook-grid";
 import { createClient } from "@/lib/supabase/server";
+import { fullName } from "@/lib/names";
 
 export const metadata: Metadata = { title: "Gradebook" };
 
@@ -105,7 +106,7 @@ export default async function ClassGradebookPage({ params }: PageProps<"/gradebo
         status: e.status,
         studentNumber: e.students?.student_number ?? "",
         name: person
-          ? [person.title, person.first_name, person.last_name].filter(Boolean).join(" ")
+          ? fullName(person)
           : "Unknown",
         sortKey: person ? `${person.last_name} ${person.first_name}` : "zzz",
         currentScore: total?.current ?? null,

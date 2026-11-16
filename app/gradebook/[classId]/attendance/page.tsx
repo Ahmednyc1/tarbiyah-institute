@@ -9,6 +9,7 @@ import {
 } from "@/components/attendance-register";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
+import { fullName } from "@/lib/names";
 
 export const metadata: Metadata = { title: "Attendance" };
 
@@ -86,7 +87,7 @@ export default async function AttendancePage({
         enrollmentId: e.id,
         studentNumber: e.students?.student_number ?? "",
         name: person
-          ? [person.title, person.first_name, person.last_name].filter(Boolean).join(" ")
+          ? fullName(person)
           : "Unknown",
         sortKey: person ? `${person.last_name} ${person.first_name}` : "zzz",
         current: selected ? (marksForSession.get(e.id) ?? "") : "",

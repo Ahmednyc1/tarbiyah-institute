@@ -9,7 +9,9 @@ import {
   recordPayment,
   resendConfirmation,
   setEnrollmentStatus,
+  updatePersonName,
   waiveFee,
+  type NameEditState,
   type ResendState,
 } from "@/app/admin/classes/[classId]/actions";
 import { formatFee } from "@/lib/format";
@@ -18,6 +20,8 @@ export function RosterRow({
   classId,
   enrollmentId,
   name,
+  firstName,
+  lastName,
   studentNumber,
   contact,
   personId,
@@ -31,6 +35,9 @@ export function RosterRow({
   classId: string;
   enrollmentId: string;
   name: string;
+  /** Real name parts, blank where missing — pre-fills the name editor. */
+  firstName: string;
+  lastName: string;
   studentNumber: string;
   contact: string | null;
   personId: string | null;
@@ -47,7 +54,12 @@ export function RosterRow({
     resendConfirmation,
     null,
   );
+  const [nameEdit, nameAction, savingName] = useActionState<NameEditState, FormData>(
+    updatePersonName,
+    null,
+  );
   const outstanding = Math.max(0, amountDue - amountPaid);
+  const nameMissing = !firstName || !lastName;
   const dropped = status === "dropped";
 
   return (
@@ -57,6 +69,11 @@ export function RosterRow({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-[12rem]">
           <span className="font-medium text-foreground">{name}</span>
+          {nameMissing && !dropped ? (
+            <Badge variant="secondary" className="ml-2 align-middle text-[11px]">
+              No last name
+            </Badge>
+          ) : null}
           <span className="block text-xs text-muted-foreground">
             {studentNumber}
             {contact ? ` · ${contact}` : ""}
@@ -144,6 +161,33 @@ export function RosterRow({
 
       {open ? (
         <div className="mt-4 space-y-4 border-t border-border pt-4">
+          {/* Name. For replies that arrive by email, and for typos. */}
+          {personId ? (
+            <form action={nameAction} className="flex flex-wrap items-end gap-3">
+              <input type="hidden" name="classId" value={classId} />
+              <input type="hidden" name="personId" value={personId} />
+              <div className="w-40 space-y-1.5">
+                <label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  First name
+                </label>
+                <Input name="firstName" defaultValue={firstName} />
+              </div>
+              <div className="w-40 space-y-1.5">
+                <label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Last name
+                </label>
+                <Input name="lastName" defaultValue={lastName} />
+              </div>
+              <Button type="submit" size="sm" variant="outline" disabled={savingName}>
+                {savingName ? "Saving…" : "Save name"}
+              </Button>
+              {nameEdit?.ok ? <span className="text-xs text-primary">{nameEdit.ok}</span> : null}
+              {nameEdit?.error ? (
+                <span className="text-xs text-destructive">{nameEdit.error}</span>
+              ) : null}
+            </form>
+          ) : null}
+
           {/* Each payment is its own record, so a balance settled in two goes
               shows as two. Finance reconciles each deposit separately. */}
           <form action={recordPayment} className="flex flex-wrap items-end gap-3">

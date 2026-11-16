@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { confirmIfUnproved, sendAddressConfirmation } from "@/lib/emails/confirm-address";
 import { NOT_ALLOWED, adminViewer, denied } from "@/lib/guard";
+import { cleanName } from "@/lib/names";
 import { createClient } from "@/lib/supabase/server";
 
 export type RosterState = {
@@ -281,4 +282,42 @@ export async function resendConfirmation(
   return ok
     ? { ok: "Sent — the link lasts 24 hours." }
     : { error: "Could not send. Check the address on their record." };
+}
+
+export type NameEditState = { error?: string; ok?: string } | null;
+
+/**
+ * An administrator correcting somebody's name from the roster.
+ *
+ * For the replies that arrive by email ("my full name is …") and for typos.
+ * The same checks as the student's own form, so neither can save 'Pending'
+ * or an empty name. Asks for the row back because RLS refuses silently.
+ */
+export async function updatePersonName(
+  _prev: NameEditState,
+  formData: FormData,
+): Promise<NameEditState> {
+  if (!(await adminViewer())) return { error: NOT_ALLOWED };
+
+  const classId = String(formData.get("classId") ?? "");
+  const personId = String(formData.get("personId") ?? "");
+  if (!personId) return { error: "Missing person." };
+
+  const first = cleanName(formData.get("firstName"), "First name");
+  if ("error" in first) return first;
+  const last = cleanName(formData.get("lastName"), "Last name");
+  if ("error" in last) return last;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("people")
+    .update({ first_name: first.ok, last_name: last.ok })
+    .eq("id", personId)
+    .select("id");
+
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: NOT_ALLOWED };
+
+  refresh(classId);
+  return { ok: "Name saved." };
 }

@@ -1,3 +1,4 @@
+import { fullName, needsFullName, realName } from "@/lib/names";
 import { createClient } from "@/lib/supabase/server";
 
 export type Viewer = {
@@ -5,6 +6,11 @@ export type Viewer = {
   email: string | null;
   personId: string | null;
   displayName: string;
+  /** Their own first and last name, blank where missing — for pre-filling a form. */
+  firstName: string;
+  lastName: string;
+  /** True while the record still lacks a real first or last name. */
+  needsFullName: boolean;
   /**
    * Roles draw the UI, and gate Server Actions through lib/guard — but they
    * are never the only thing standing in the way. RLS re-checks every query in
@@ -42,15 +48,16 @@ export async function getViewer(): Promise<Viewer | null> {
     supabase.from("my_roles").select("is_admin, teacher_id, student_id").maybeSingle(),
   ]);
 
-  const displayName = person
-    ? [person.title, person.first_name, person.last_name].filter(Boolean).join(" ")
-    : (user.email ?? "Account");
+  const displayName = person ? fullName(person, user.email ?? "Account") : (user.email ?? "Account");
 
   return {
     userId: user.id,
     email: user.email ?? null,
     personId: person?.id ?? null,
     displayName,
+    firstName: realName(person?.first_name) ?? "",
+    lastName: realName(person?.last_name) ?? "",
+    needsFullName: needsFullName(person),
     isAdmin: roles?.is_admin ?? false,
     teacherId: roles?.teacher_id ?? null,
     studentId: roles?.student_id ?? null,

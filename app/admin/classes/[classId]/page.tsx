@@ -9,6 +9,7 @@ import { AddStudentPanel } from "@/components/add-student-panel";
 import { RosterRow } from "@/components/roster-row";
 import { formatFee } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { fullName, realName } from "@/lib/names";
 
 export const metadata: Metadata = { title: "Roster" };
 
@@ -69,7 +70,7 @@ export default async function RosterPage({
       .filter((p) => !enrolledPersonIds.has(p.id))
       .map((p) => ({
         id: p.id,
-        label: [p.title, p.first_name, p.last_name].filter(Boolean).join(" "),
+        label: fullName(p),
         detail: p.email ?? "no email on file",
       }));
   }
@@ -165,9 +166,11 @@ export default async function RosterPage({
                 enrollmentId={row.id}
                 name={
                   person
-                    ? [person.title, person.first_name, person.last_name].filter(Boolean).join(" ")
+                    ? fullName(person)
                     : "Unknown"
                 }
+                firstName={realName(person?.first_name) ?? ""}
+                lastName={realName(person?.last_name) ?? ""}
                 studentNumber={row.students?.student_number ?? ""}
                 contact={person?.email ?? person?.phone ?? null}
                 personId={person?.id ?? null}
@@ -200,12 +203,12 @@ export default async function RosterPage({
                   enrollmentId={row.id}
                   name={
                     person
-                      ? [person.title, person.first_name, person.last_name]
-                          .filter(Boolean)
-                          .join(" ")
+                      ? fullName(person)
                       : "Unknown"
                   }
-                  studentNumber={row.students?.student_number ?? ""}
+                  firstName={realName(person?.first_name) ?? ""}
+                lastName={realName(person?.last_name) ?? ""}
+                studentNumber={row.students?.student_number ?? ""}
                   contact={person?.email ?? person?.phone ?? null}
                 personId={person?.id ?? null}
                 emailUnconfirmed={Boolean(

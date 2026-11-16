@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Award, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FullNameForm } from "@/components/full-name-form";
 import { getViewer } from "@/lib/account";
 import { formatFee } from "@/lib/format";
 import { getReportCard, type ReportRow } from "@/lib/report-card";
@@ -34,6 +35,10 @@ export default async function PortalPage() {
       <div className="gold-rule mt-3" />
       <h1 className="mt-5 font-display text-5xl text-primary">{viewer.displayName}</h1>
       {viewer.email ? <p className="mt-2 text-muted-foreground">{viewer.email}</p> : null}
+
+      {viewer.personId && viewer.needsFullName ? (
+        <FullNameForm firstName={viewer.firstName} lastName={viewer.lastName} />
+      ) : null}
 
       {viewer.personId === null ? (
         <p className="mt-8 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
